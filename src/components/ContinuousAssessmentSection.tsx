@@ -31,6 +31,7 @@ interface ContinuousAssessmentSectionProps {
 
   subtotal: number;
   caMax?: number;
+  estimatedMarks?: boolean;
 }
 
 export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionProps> = ({
@@ -59,6 +60,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
   labStartIndex,
   subtotal,
   caMax = 25,
+  estimatedMarks = false,
 }) => {
   const hasLab = labWeight > 0;
   const currentMax = allowCustomTestMax
@@ -258,6 +260,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
             weight={actWeight}
             calculatedPoints={actPoints}
             caName={`CA ${number}`}
+            estimatedMarks={estimatedMarks}
           />
         </div>
 
@@ -276,6 +279,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
             weight={labWeight}
             calculatedPoints={labPoints}
             caName={`CA ${number}`}
+            estimatedMarks={estimatedMarks}
           />
         </div>
         )}

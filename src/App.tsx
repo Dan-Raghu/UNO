@@ -803,22 +803,23 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                     testPoints={breakdown.test1_p}
                     testWeight={breakdown.testWeight}
                     allowCustomTestMax={isComputationalThinking}
-                    actNo={currentSubject.act1No}
+                    actNo={displayedSubject.act1No}
                     onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
-                    actScores={currentSubject.act1Scores}
+                    actScores={displayedSubject.act1Scores}
                     onActScoresChange={(scores) => updateCurrentSubject({ act1Scores: scores })}
                     actPoints={breakdown.act1_p}
                     actWeight={breakdown.actWeight}
                     actStartIndex={1}
-                    labNo={currentSubject.lab1No}
+                    labNo={displayedSubject.lab1No}
                     onLabNoChange={(val) => updateCurrentSubject({ lab1No: val })}
-                    labScores={currentSubject.lab1Scores}
+                    labScores={displayedSubject.lab1Scores}
                     onLabScoresChange={(scores) => updateCurrentSubject({ lab1Scores: scores })}
                     labPoints={breakdown.lab1_p}
                     labWeight={breakdown.labWeight}
                     labStartIndex={1}
                     subtotal={breakdown.ca1_total}
                     caMax={breakdown.caMax}
+                    estimatedMarks={currentSubjectUsesEstimates}
                   />
                 </div>
 
@@ -833,22 +834,23 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   testPoints={breakdown.test2_p}
                   testWeight={breakdown.testWeight}
                   allowCustomTestMax={isComputationalThinking}
-                  actNo={currentSubject.act2No}
+                  actNo={displayedSubject.act2No}
                   onActNoChange={(val) => updateCurrentSubject({ act2No: val })}
-                  actScores={currentSubject.act2Scores}
+                  actScores={displayedSubject.act2Scores}
                   onActScoresChange={(scores) => updateCurrentSubject({ act2Scores: scores })}
                   actPoints={breakdown.act2_p}
                   actWeight={breakdown.actWeight}
-                  actStartIndex={(Number(currentSubject.act1No) || 0) + 1}
-                  labNo={currentSubject.lab2No}
+                  actStartIndex={(Number(displayedSubject.act1No) || 0) + 1}
+                  labNo={displayedSubject.lab2No}
                   onLabNoChange={(val) => updateCurrentSubject({ lab2No: val })}
-                  labScores={currentSubject.lab2Scores}
+                  labScores={displayedSubject.lab2Scores}
                   onLabScoresChange={(scores) => updateCurrentSubject({ lab2Scores: scores })}
                   labPoints={breakdown.lab2_p}
                   labWeight={breakdown.labWeight}
-                  labStartIndex={(Number(currentSubject.lab1No) || 0) + 1}
+                  labStartIndex={(Number(displayedSubject.lab1No) || 0) + 1}
                   subtotal={breakdown.ca2_total}
                   caMax={breakdown.caMax}
+                  estimatedMarks={currentSubjectUsesEstimates}
                 />
 
                 {/* End Semester Section */}
@@ -856,7 +858,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   courseType={breakdown.courseType}
                   ese={currentSubject.ese}
                   onEseChange={(val) => updateCurrentSubject({ ese: val })}
-                  eseLab={currentSubject.eseLab}
+                  eseLab={displayedSubject.eseLab}
                   onEseLabChange={(val) => updateCurrentSubject({ eseLab: val })}
                   eseLabMax={currentSubject.eseLabMax}
                   onEseLabMaxChange={(val) => updateCurrentSubject({ eseLabMax: val })}
@@ -867,6 +869,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   eseLabWeight={breakdown.eseLabWeight}
                   internalTotal={breakdown.internal_total}
                   internalMax={breakdown.internalMax}
+                  estimatedLabMark={currentSubjectUsesEstimates && breakdown.eseLabWeight > 0}
                 />
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-slate-300 bg-white p-4">

@@ -18,6 +18,7 @@ interface EndSemesterSectionProps {
   eseLabWeight?: number;
   internalTotal: number;
   internalMax?: number;
+  estimatedLabMark?: boolean;
 }
 
 export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
@@ -34,6 +35,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
   eseLabWeight = 0,
   internalTotal,
   internalMax = 50,
+  estimatedLabMark = false,
 }) => {
   const eseWeight = eseTheoryWeight + eseLabWeight;
   const hasTheory = eseTheoryWeight > 0;
@@ -276,8 +278,9 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                   step={0.5}
                   value={eseLab === '' || eseLab === undefined ? '' : eseLab}
                   placeholder={`Enter ${labName.toLowerCase()} marks (0 - ${numericLabMax})`}
+                  readOnly={estimatedLabMark}
                   onChange={handleLabChange}
-                  className="w-full px-3 py-2 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm"
+                  className="w-full px-3 py-2 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm read-only:bg-blue-50 read-only:text-[#1e3a8a]"
                 />
                 <span className="absolute right-3.5 top-2.5 text-xs font-bold text-[#1e3a8a]">
                   / {numericLabMax}
@@ -297,6 +300,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                   max={numericLabMax}
                   step={1}
                   value={Math.min(numericLabMax, numericLab)}
+                  disabled={estimatedLabMark}
                   onChange={(e) => onEseLabChange && onEseLabChange(parseFloat(e.target.value))}
                   aria-label="Adjust ESE Lab Marks slider"
                   className="w-full accent-[#172554] cursor-pointer"
@@ -312,7 +316,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
             <div className="pt-4 border-t border-slate-200 mt-4">
               <div className="flex items-baseline justify-between text-[#172554]">
                 <span className="text-xs font-bold uppercase tracking-wider">
-                  MARKS:
+                  {estimatedLabMark ? 'MARKS (Based on the average estimate):' : 'MARKS:'}
                 </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-black tabular-nums">

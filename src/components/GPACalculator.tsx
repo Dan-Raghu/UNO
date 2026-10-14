@@ -68,15 +68,27 @@ function estimateScores(
   ): (number | string)[] {
     const count = Math.max(0, Math.floor(Number(countValue) || 0));
     const estimateMark = (10 * estimatePercentage) / 100;
-    return Array.from({ length: count }, () => estimateMark);
+    return Array.from({ length: count === 0 && entered(countValue) ? 1 : count }, () => estimateMark);
+}
+
+function estimatedCount(countValue: number | string): number | string {
+  return entered(countValue) && Number(countValue) === 0 ? 1 : countValue;
 }
 
 export function applyEstimatedScores(subject: SubjectData, estimatePercentage: number): SubjectData {
     const weights = getCourseWeights(getCourseType(subject));
     return {
       ...subject,
+      act1No: estimatedCount(subject.act1No),
+      act2No: estimatedCount(subject.act2No),
       act1Scores: estimateScores(subject.act1No, estimatePercentage),
       act2Scores: estimateScores(subject.act2No, estimatePercentage),
+      ...(weights.labWeight > 0
+        ? {
+            lab1No: estimatedCount(subject.lab1No),
+            lab2No: estimatedCount(subject.lab2No),
+          }
+        : {}),
       lab1Scores: weights.labWeight > 0
         ? estimateScores(subject.lab1No, estimatePercentage)
         : subject.lab1Scores,
@@ -95,10 +107,11 @@ export function applyEstimatedScores(subject: SubjectData, estimatePercentage: n
 export function hasEstimateableComponents(subject: SubjectData): boolean {
     const weights = getCourseWeights(getCourseType(subject));
     return (
-      Number(subject.act1No) > 0 ||
-      Number(subject.act2No) > 0 ||
+      (entered(subject.act1No) && Number(subject.act1No) >= 0) ||
+      (entered(subject.act2No) && Number(subject.act2No) >= 0) ||
       (weights.labWeight > 0 &&
-        (Number(subject.lab1No) > 0 || Number(subject.lab2No) > 0)) ||
+        ((entered(subject.lab1No) && Number(subject.lab1No) >= 0) ||
+          (entered(subject.lab2No) && Number(subject.lab2No) >= 0))) ||
       weights.eseLabWeight > 0
     );
 }
