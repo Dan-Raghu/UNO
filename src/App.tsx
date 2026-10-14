@@ -198,6 +198,8 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         setSubjects(loadedSubjects);
         setCurrentSubjectId(selectedId);
         setActiveTab(workspace.preferences.activeTab);
+        setIncludeEstimates(workspace.preferences.includeEstimates);
+        setEstimatePercentage(workspace.preferences.estimatePercentage);
         setCalculatedSignatures(workspace.calculatedSignatures);
         setGpaHistory(workspace.gpaHistory);
         setLegacySubjects(parseLegacySubjects());
@@ -206,6 +208,8 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         preferencesSignatureRef.current = JSON.stringify({
           currentSubjectId: selectedId,
           activeTab: workspace.preferences.activeTab,
+          includeEstimates: workspace.preferences.includeEstimates,
+          estimatePercentage: workspace.preferences.estimatePercentage,
         });
         setIsDialogOpen(false);
         setDataLoading(false);
@@ -245,13 +249,19 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
   useEffect(() => {
     if (dataLoading || dataError || !currentSubjectId) return;
-    const signature = JSON.stringify({ currentSubjectId, activeTab });
+    const preferences = {
+      currentSubjectId,
+      activeTab,
+      includeEstimates,
+      estimatePercentage,
+    };
+    const signature = JSON.stringify(preferences);
     if (signature === preferencesSignatureRef.current) return;
     const timeout = window.setTimeout(() => {
       preferencesQueueRef.current = preferencesQueueRef.current
         .then(async () => {
           if (signature === preferencesSignatureRef.current) return;
-          await saveUserPreferences(user.uid, { currentSubjectId, activeTab });
+          await saveUserPreferences(user.uid, preferences);
           preferencesSignatureRef.current = signature;
         })
         .catch((error: unknown) => {
@@ -260,7 +270,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         });
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [currentSubjectId, activeTab, user.uid, dataLoading, dataError]);
+  }, [currentSubjectId, activeTab, includeEstimates, estimatePercentage, user.uid, dataLoading, dataError]);
 
   const currentSubject = useMemo(() => {
     return subjects.find((s) => s.id === currentSubjectId) || subjects[0] || DEFAULT_SUBJECT;

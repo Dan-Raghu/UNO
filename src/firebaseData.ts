@@ -38,7 +38,12 @@ export interface UserWorkspaceData {
   calculatedSignatures: Record<string, string>;
   gpaHistory: GpaHistoryEntry[];
   migrationResolved: boolean;
-  preferences: { currentSubjectId: string; activeTab: 'calculator' | 'grades' | 'gpa' };
+  preferences: {
+    currentSubjectId: string;
+    activeTab: 'calculator' | 'grades' | 'gpa';
+    includeEstimates: boolean;
+    estimatePercentage: number;
+  };
 }
 
 function requireFirestore() {
@@ -94,6 +99,10 @@ export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData>
       activeTab: ['calculator', 'grades', 'gpa'].includes(preferencesSnapshot.data()?.activeTab)
         ? preferencesSnapshot.data()!.activeTab as 'calculator' | 'grades' | 'gpa'
         : 'calculator',
+      includeEstimates: preferencesSnapshot.data()?.includeEstimates === true,
+      estimatePercentage: typeof preferencesSnapshot.data()?.estimatePercentage === 'number'
+        ? Math.max(0, Math.min(100, preferencesSnapshot.data()!.estimatePercentage as number))
+        : 80,
     },
   };
 }
@@ -132,7 +141,12 @@ export async function syncUserSubjects(
 
 export async function saveUserPreferences(
   uid: string,
-  preferences: { currentSubjectId: string; activeTab: string }
+  preferences: {
+    currentSubjectId: string;
+    activeTab: string;
+    includeEstimates: boolean;
+    estimatePercentage: number;
+  }
 ) {
   await setDoc(
     userDocument(uid, 'settings', 'preferences'),
