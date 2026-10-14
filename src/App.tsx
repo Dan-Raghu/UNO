@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { SubjectData, CourseType } from './types';
 import {
   DEFAULT_SUBJECT,
@@ -13,6 +14,19 @@ import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
 import { SubjectSelectionDialog } from './components/SubjectSelectionDialog';
 import { GPACalculator } from './components/GPACalculator';
+import { GPA_COURSES } from './gpaCourses';
+import { AuthScreen } from './components/AuthScreen';
+import { auth, firebaseConfigReady } from './firebase';
+import {
+  importLegacySubjects,
+  loadUserWorkspace,
+  saveCalculatedGrade,
+  saveGpaHistory,
+  saveUserPreferences,
+  skipLegacyMigration,
+  syncUserSubjects,
+  type GpaHistoryEntry,
+} from './firebaseData';
 import {
   Calculator,
   TableProperties,
@@ -21,9 +35,12 @@ import {
   ArrowDown,
   BookOpen,
   GraduationCap,
+  LogOut,
+  LoaderCircle,
+  AlertCircle,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
+const LEGACY_STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
 
 export const INITIAL_EMPTY_SUBJECT: SubjectData = {
   ...DEFAULT_SUBJECT,
@@ -33,55 +50,218 @@ export const INITIAL_EMPTY_SUBJECT: SubjectData = {
   courseType: '2-0-2',
 };
 
-export default function App() {
-  // Load saved subjects from localStorage or ask the user to select their courses
-  const [subjects, setSubjects] = useState<SubjectData[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.name) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load saved subjects:', e);
-    }
-    return [INITIAL_EMPTY_SUBJECT];
-  });
+interface AuthenticatedAppProps {
+  user: User;
+  onSignOut: () => Promise<void>;
+  signOutPending: boolean;
+  signOutError: string;
+}
 
-  const [currentSubjectId, setCurrentSubjectId] = useState<string>(
-    subjects[0]?.id || 'sub_1'
+function parseLegacySubjects(): SubjectData[] {
+  try {
+    const saved = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    const parsed: unknown = saved ? JSON.parse(saved) : null;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is SubjectData =>
+        Boolean(item && typeof item === 'object' && typeof item.name === 'string' && item.name.trim())
+    );
+  } catch {
+    return [];
+  }
+}
+
+function WorkspaceLoading({ message }: { message: string }) {
+  return (
+    <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+      <div className="flex items-center gap-3 text-sm font-semibold text-[#172554]">
+        <LoaderCircle className="w-5 h-5 animate-spin" aria-hidden="true" />
+        {message}
+      </div>
+    </main>
   );
-  const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
-  const [calculatedSubject, setCalculatedSubject] = useState<SubjectData | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(() => {
-    // Open dialog on load if user hasn't selected a course yet
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return true;
-    try {
-      const parsed = JSON.parse(saved);
-      return !parsed[0]?.name;
-    } catch {
-      return true;
-    }
-  });
+}
 
-  // Save to localStorage whenever subjects changes
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [signOutPending, setSignOutPending] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
+
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(subjects));
-    } catch (e) {
-      console.error('Failed to save subjects to localStorage:', e);
+    if (!auth) {
+      setAuthResolved(true);
+      return;
     }
-  }, [subjects]);
+    return onAuthStateChanged(
+      auth,
+      (nextUser) => {
+        setUser(nextUser);
+        setAuthResolved(true);
+        setAuthError('');
+        setSignOutPending(false);
+      },
+      (error) => {
+        console.error('Unable to resolve authentication state:', error);
+        setAuthError('Could not verify your sign-in state. Check your connection and reload the page.');
+        setAuthResolved(true);
+      }
+    );
+  }, []);
+
+  const handleSignOut = async () => {
+    if (!auth || signOutPending) return;
+    setSignOutPending(true);
+    setSignOutError('');
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Unable to sign out:', error);
+      setSignOutError('Could not log out. Please try again.');
+      setSignOutPending(false);
+    }
+  };
+
+  if (!firebaseConfigReady || !auth) {
+    return <AuthScreen configurationError="Firebase is not configured. Add the required VITE_FIREBASE_* values to src/.env.local and restart the development server." />;
+  }
+
+  if (!authResolved) return <WorkspaceLoading message="Checking your sign-in…" />;
+
+  if (authError) {
+    return (
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+        <section className="max-w-lg w-full bg-white border border-rose-200 p-6 shadow-sm text-sm text-rose-900" role="alert">
+          {authError}
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 block bg-[#172554] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">
+            Reload
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!user) return <AuthScreen />;
+
+  return (
+    <AuthenticatedApp
+      key={user.uid}
+      user={user}
+      onSignOut={handleSignOut}
+      signOutPending={signOutPending}
+      signOutError={signOutError}
+    />
+  );
+}
+
+function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: AuthenticatedAppProps) {
+  const [subjects, setSubjects] = useState<SubjectData[]>([]);
+  const [currentSubjectId, setCurrentSubjectId] = useState('');
+  const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
+  const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
+  const [gpaHistory, setGpaHistory] = useState<GpaHistoryEntry[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [legacySubjects, setLegacySubjects] = useState<SubjectData[]>([]);
+  const [migrationResolved, setMigrationResolved] = useState(false);
+  const [migrationBusy, setMigrationBusy] = useState(false);
+  const [migrationError, setMigrationError] = useState('');
+  const [calculationBusy, setCalculationBusy] = useState(false);
+  const persistedSubjectsRef = useRef<Map<string, string>>(new Map());
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const preferencesQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const preferencesSignatureRef = useRef('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setDataLoading(true);
+    setDataError('');
+    void loadUserWorkspace(user.uid)
+      .then((workspace) => {
+        if (cancelled) return;
+        const loadedSubjects = workspace.subjects.length ? workspace.subjects : [INITIAL_EMPTY_SUBJECT];
+        const preferredId = workspace.preferences.currentSubjectId;
+        const selectedId = loadedSubjects.some((subject) => subject.id === preferredId)
+          ? preferredId
+          : loadedSubjects[0].id;
+        setSubjects(loadedSubjects);
+        setCurrentSubjectId(selectedId);
+        setActiveTab(workspace.preferences.activeTab);
+        setCalculatedSignatures(workspace.calculatedSignatures);
+        setGpaHistory(workspace.gpaHistory);
+        setLegacySubjects(parseLegacySubjects());
+        setMigrationResolved(workspace.migrationResolved);
+        persistedSubjectsRef.current = workspace.persistedSubjectSnapshots;
+        preferencesSignatureRef.current = JSON.stringify({
+          currentSubjectId: selectedId,
+          activeTab: workspace.preferences.activeTab,
+        });
+        setIsDialogOpen(!loadedSubjects.some((subject) => subject.name.trim()));
+        setDataLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error('Unable to load account data:', error);
+        setDataError('Could not load your account data. Check your connection and Firestore rules, then retry.');
+        setDataLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user.uid, loadAttempt]);
+
+  useEffect(() => {
+    if (dataLoading || dataError) return;
+    const snapshot = [...subjects];
+    const timeout = window.setTimeout(() => {
+      persistQueueRef.current = persistQueueRef.current
+        .then(async () => {
+          const latestSnapshots = await syncUserSubjects(
+            user.uid,
+            snapshot,
+            persistedSubjectsRef.current
+          );
+          persistedSubjectsRef.current = latestSnapshots;
+          setSaveError('');
+        })
+        .catch((error: unknown) => {
+          console.error('Unable to save account data:', error);
+          setSaveError('Some changes could not be saved. Check your connection and retry.');
+        });
+    }, 450);
+    return () => window.clearTimeout(timeout);
+  }, [subjects, user.uid, dataLoading, dataError]);
+
+  useEffect(() => {
+    if (dataLoading || dataError || !currentSubjectId) return;
+    const signature = JSON.stringify({ currentSubjectId, activeTab });
+    if (signature === preferencesSignatureRef.current) return;
+    const timeout = window.setTimeout(() => {
+      preferencesQueueRef.current = preferencesQueueRef.current
+        .then(async () => {
+          if (signature === preferencesSignatureRef.current) return;
+          await saveUserPreferences(user.uid, { currentSubjectId, activeTab });
+          preferencesSignatureRef.current = signature;
+        })
+        .catch((error: unknown) => {
+          console.error('Unable to save account preferences:', error);
+          setSaveError('Your latest preferences could not be saved.');
+        });
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [currentSubjectId, activeTab, user.uid, dataLoading, dataError]);
 
   const currentSubject = useMemo(() => {
     return subjects.find((s) => s.id === currentSubjectId) || subjects[0] || DEFAULT_SUBJECT;
   }, [subjects, currentSubjectId]);
 
   const hasSubjectSelected = Boolean(currentSubject.name && currentSubject.name.trim().length > 0);
-  const hasCalculatedCurrentSubject = calculatedSubject === currentSubject;
+  const currentSubjectSignature = JSON.stringify(currentSubject);
+  const hasCalculatedCurrentSubject = calculatedSignatures[currentSubject.id] === currentSubjectSignature;
   const isComputationalThinking =
     currentSubject.code === 'CS23101' ||
     currentSubject.courseType === '1-0-2' ||
@@ -152,6 +332,74 @@ export default function App() {
     });
   };
 
+  const handleImportLegacy = async () => {
+    if (migrationBusy || legacySubjects.length === 0) return;
+    setMigrationBusy(true);
+    setMigrationError('');
+    try {
+      const imported = await importLegacySubjects(user.uid, legacySubjects, subjects);
+      const nextSubjects = [...subjects, ...imported];
+      persistedSubjectsRef.current = new Map(
+        nextSubjects.map((subject) => [subject.id, JSON.stringify(subject)])
+      );
+      setSubjects(nextSubjects);
+      setCurrentSubjectId(imported[0]?.id ?? currentSubjectId);
+      setMigrationResolved(true);
+    } catch (error) {
+      console.error('Unable to import browser data:', error);
+      setMigrationError('Import did not complete. Your browser data was left unchanged; please try again.');
+    } finally {
+      setMigrationBusy(false);
+    }
+  };
+
+  const handleSkipLegacy = async () => {
+    if (migrationBusy) return;
+    setMigrationBusy(true);
+    setMigrationError('');
+    try {
+      await skipLegacyMigration(user.uid);
+      setMigrationResolved(true);
+    } catch (error) {
+      console.error('Unable to save migration choice:', error);
+      setMigrationError('Your choice could not be saved. Please try again.');
+    } finally {
+      setMigrationBusy(false);
+    }
+  };
+
+  const handleCalculateMarks = async () => {
+    if (calculationBusy) return;
+    setCalculationBusy(true);
+    setSaveError('');
+    try {
+      const inputSignature = JSON.stringify(currentSubject);
+      const course = GPA_COURSES.find(
+        (item) => item.code === currentSubject.code || item.name.toLowerCase() === currentSubject.name.trim().toLowerCase()
+      );
+      await saveCalculatedGrade(user.uid, currentSubject, {
+        inputSignature,
+        credits: course?.credits ?? 0,
+        total: breakdown.total,
+        grade: breakdown.grade.letter,
+        gradeLabel: breakdown.grade.label,
+        gradePoint: breakdown.grade.gradePoint,
+        courseType: breakdown.courseTypeLabel,
+      });
+      setCalculatedSignatures((previous) => ({ ...previous, [currentSubject.id]: inputSignature }));
+    } catch (error) {
+      console.error('Unable to save calculated grade:', error);
+      setSaveError('The result could not be saved. Check your connection and try calculating again.');
+    } finally {
+      setCalculationBusy(false);
+    }
+  };
+
+  const handleCalculateGpa = async (entry: GpaHistoryEntry) => {
+    await saveGpaHistory(user.uid, entry);
+    setGpaHistory((previous) => [entry, ...previous].sort((a, b) => b.createdAtMs - a.createdAtMs));
+  };
+
   // Perform calculations
   const breakdown = useMemo(() => {
     return calculateMarks(currentSubject);
@@ -163,6 +411,30 @@ export default function App() {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  if (signOutPending) return <WorkspaceLoading message="Signing out…" />;
+  if (dataLoading) return <WorkspaceLoading message="Loading your courses…" />;
+
+  if (dataError) {
+    return (
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+        <section className="max-w-lg w-full bg-white border border-slate-300 p-6 shadow-sm">
+          <div className="flex items-start gap-3 text-rose-900">
+            <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" aria-hidden="true" />
+            <p className="text-sm" role="alert">{dataError}</p>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button type="button" onClick={() => setLoadAttempt((count) => count + 1)} className="bg-[#172554] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#1e3a8a]">
+              Retry
+            </button>
+            <button type="button" onClick={onSignOut} className="border border-slate-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50">
+              Log out
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
@@ -244,25 +516,69 @@ export default function App() {
               <span>GPA Calculator</span>
             </button>
           </nav>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={user.email ?? undefined}>
+              {user.email}
+            </span>
+            <button
+              type="button"
+              onClick={() => void onSignOut()}
+              disabled={signOutPending}
+              className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50 disabled:opacity-60"
+            >
+              {signOutPending ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <LogOut className="w-3.5 h-3.5" aria-hidden="true" />}
+              <span>{signOutPending ? 'Signing out' : 'Log out'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {saveError && (
+          <div className="mb-5 flex items-start justify-between gap-3 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">
+            <span>{saveError}</span>
+            <button type="button" onClick={() => setSaveError('')} aria-label="Dismiss save error" className="font-bold underline">Dismiss</button>
+          </div>
+        )}
+        {signOutError && (
+          <div className="mb-5 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">{signOutError}</div>
+        )}
+
+        {!migrationResolved && legacySubjects.length > 0 && (
+          <section className="mb-6 border border-amber-300 bg-amber-50 p-4 sm:p-5" aria-labelledby="migration-heading">
+            <h2 id="migration-heading" className="font-black text-[#172554]">Existing browser data found</h2>
+            <p className="mt-1 text-sm text-slate-700">
+              There are {legacySubjects.length} saved course{legacySubjects.length === 1 ? '' : 's'} in this browser. These records predate sign-in and are not linked to an account; import only if they belong to you. Importing copies them into {user.email ?? 'your account'} without replacing cloud records or deleting the browser copy.
+            </p>
+            {migrationError && <p className="mt-2 text-sm font-semibold text-rose-800" role="alert">{migrationError}</p>}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => void handleImportLegacy()} disabled={migrationBusy} className="inline-flex items-center gap-2 bg-[#172554] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#1e3a8a] disabled:opacity-60">
+                {migrationBusy && <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                Import a copy
+              </button>
+              <button type="button" onClick={() => void handleSkipLegacy()} disabled={migrationBusy} className="border border-slate-400 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50 disabled:opacity-60">
+                Keep account separate
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* Course Tab Selector Bar */}
         <div className="flex items-center justify-between pb-4 mb-6 overflow-x-auto gap-3 border-b border-slate-300">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#172554] whitespace-nowrap hidden sm:inline">
               Courses:
             </span>
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
               {subjects.map((sub, idx) => {
                 const isSelected = sub.id === currentSubject.id;
                 const label = sub.name || `Course ${idx + 1} - Unselected`;
                 return (
                   <div
                     key={sub.id}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-all border ${
+                    className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold transition-all border ${
                       isSelected
                         ? 'bg-[#172554] text-white border-[#172554]'
                         : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
@@ -271,7 +587,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setCurrentSubjectId(sub.id)}
-                      className="whitespace-nowrap cursor-pointer"
+                      className="whitespace-nowrap !bg-transparent !text-inherit cursor-pointer"
                     >
                       {label}
                     </button>
@@ -437,11 +753,12 @@ export default function App() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-slate-300 bg-white p-4">
                   <button
                     type="button"
-                    onClick={() => setCalculatedSubject(currentSubject)}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] transition-colors cursor-pointer"
+                    onClick={() => void handleCalculateMarks()}
+                    disabled={calculationBusy}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:opacity-60 transition-colors cursor-pointer"
                   >
-                    <Calculator className="w-4 h-4" aria-hidden="true" />
-                    {hasCalculatedCurrentSubject ? 'Recalculate Mark & Grade' : 'Calculate Mark & Grade'}
+                    {calculationBusy ? <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Calculator className="w-4 h-4" aria-hidden="true" />}
+                    {calculationBusy ? 'Saving result…' : hasCalculatedCurrentSubject ? 'Recalculate Mark & Grade' : 'Calculate Mark & Grade'}
                   </button>
                 </div>
 
@@ -576,7 +893,7 @@ export default function App() {
           </div>
         )}
     
-        {activeTab === 'gpa' && <GPACalculator subjects={subjects} />}
+        {activeTab === 'gpa' && <GPACalculator subjects={subjects} history={gpaHistory} onCalculate={handleCalculateGpa} />}
 </main>
 
 

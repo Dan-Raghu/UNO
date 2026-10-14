@@ -1,25 +1,13 @@
 import React, { useState } from 'react';
 import { CheckCircle2, GraduationCap } from 'lucide-react';
 import type { SubjectData } from '../types';
+import type { GpaHistoryEntry } from '../firebaseData';
+import { GPA_COURSES } from '../gpaCourses';
 import {
   calculateMarks,
   getCourseType,
   getCourseWeights,
 } from '../calculatorUtils';
-
-export const GPA_COURSES = [
-  { code: 'EN23C03', name: 'Foundation English', credits: 3 },
-  { code: 'MA23C11', name: 'Calculus', credits: 4 },
-  { code: 'PH23C11', name: 'Engineering Physics', credits: 4 },
-  {
-    code: 'EE23C02',
-    name: 'Fundamentals of Electrical and Electronics Engineering',
-    credits: 3,
-  },
-  { code: 'CS23C04', name: 'Programming in C', credits: 4 },
-  { code: 'CS23101', name: 'Computational Thinking', credits: 2 },
-  { code: 'UC23H01', name: 'Heritage of Tamils', credits: 1 },
-] as const;
 
 const findCourseSubject = (subjects: SubjectData[], course: (typeof GPA_COURSES)[number]) =>
   subjects.find(
@@ -42,7 +30,7 @@ function scoresComplete(countValue: number | string, scores: (number | string)[]
 }
 
 function subjectMarksComplete(subject: SubjectData): boolean {
-  if (!subject.name?.trim() || !subject.code?.trim()) return false;
+  if (!subject.name?.trim()) return false;
 
   const weights = getCourseWeights(getCourseType(subject));
 
@@ -72,10 +60,14 @@ export function isGpaReady(subjects: SubjectData[]): boolean {
 
 interface GPACalculatorProps {
   subjects: SubjectData[];
+  history: GpaHistoryEntry[];
+  onCalculate: (entry: GpaHistoryEntry) => Promise<void>;
 }
 
-export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
+export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history, onCalculate }) => {
   const [calculatedSubjects, setCalculatedSubjects] = useState<SubjectData[] | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [calculationError, setCalculationError] = useState('');
   const gpaReady = isGpaReady(subjects);
   const hasCalculated = gpaReady && calculatedSubjects === subjects;
 
@@ -97,6 +89,35 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
   const gpa = totalCredits ? totalWeightedPoints / totalCredits : 0;
   const completedCourses = rows.filter((row) => row.complete).length;
 
+  const handleCalculateGpa = async () => {
+    if (!gpaReady || isSaving) return;
+    setIsSaving(true);
+    setCalculationError('');
+    try {
+      const entry: GpaHistoryEntry = {
+        id: `gpa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        gpa,
+        totalCredits,
+        weightedGradePoints: totalWeightedPoints,
+        createdAtMs: Date.now(),
+        courses: rows.map((row) => ({
+          code: row.code,
+          name: row.name,
+          credits: row.credits,
+          mark: row.mark ?? 0,
+          grade: row.grade ?? '',
+          gradePoint: row.gradePoint ?? 0,
+        })),
+      };
+      await onCalculate(entry);
+      setCalculatedSubjects(subjects);
+    } catch {
+      setCalculationError('Could not save GPA history. Check your connection and try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <section className="max-w-5xl mx-auto space-y-6">
       <div className="bg-white border border-slate-300 p-5 sm:p-7 shadow-sm">
@@ -116,10 +137,6 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
 
         <div className="mt-5 border border-blue-200 bg-blue-50 p-4 sm:p-5" role="status">
           <p className="font-bold text-[#172554]">Enter all 7 course marks to calculate your GPA.</p>
-          <p className="text-sm text-slate-700 mt-1">
-            Use the course tabs above to complete all applicable assessment marks for each Semester I course.
-            Your final marks and grades will appear here after you select Calculate GPA.
-          </p>
           <p className="text-xs font-bold text-[#172554] mt-3" aria-live="polite">
             {completedCourses} of 7 courses complete
           </p>
@@ -166,14 +183,15 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
           </p>
           <button
             type="button"
-            onClick={() => setCalculatedSubjects(subjects)}
-            disabled={!gpaReady}
+            onClick={handleCalculateGpa}
+            disabled={!gpaReady || isSaving}
             className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <GraduationCap className="w-4 h-4" aria-hidden="true" />
-            Calculate GPA
+            {isSaving ? 'Saving…' : 'Calculate GPA'}
           </button>
         </div>
+        {calculationError && <p className="border-t border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" role="alert">{calculationError}</p>}
       </div>
 
       {hasCalculated && (
@@ -240,6 +258,32 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
             Formula: GPA = Σ (course credits × grade points) ÷ total credits. Total Semester I credits: 21.
           </p>
         </>
+      )}
+
+      {history.length > 0 && (
+        <section className="bg-white border border-slate-300 shadow-sm overflow-x-auto" aria-labelledby="gpa-history-heading">
+          <div className="p-4 border-b border-slate-200">
+            <h3 id="gpa-history-heading" className="font-black text-[#172554]">GPA history</h3>
+          </div>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+              <tr>
+                <th scope="col" className="px-4 py-3">Calculated</th>
+                <th scope="col" className="px-4 py-3 text-center">Credits</th>
+                <th scope="col" className="px-4 py-3 text-center">GPA</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {history.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="px-4 py-3">{new Date(entry.createdAtMs).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-center">{entry.totalCredits}</td>
+                  <td className="px-4 py-3 text-center font-black text-[#172554]">{entry.gpa.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
     </section>
   );
