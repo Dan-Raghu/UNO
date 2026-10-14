@@ -1,0 +1,203 @@
+import React from 'react';
+import { Plus, Minus, FlaskConical, FileText } from 'lucide-react';
+
+interface DynamicScoreBoxesProps {
+  title: string;
+  category: 'assignment' | 'lab';
+  count: number | string;
+  onCountChange: (newCount: number | string) => void;
+  scores: (number | string)[];
+  onScoresChange: (newScores: (number | string)[]) => void;
+  startIndex?: number;
+  maxMarkPerBox?: number;
+  weight: number;
+  calculatedPoints: number;
+  caName: string;
+}
+
+export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
+  title,
+  category,
+  count,
+  onCountChange,
+  scores,
+  onScoresChange,
+  startIndex = 1,
+  maxMarkPerBox = 10,
+  weight,
+  calculatedPoints,
+  caName,
+}) => {
+  const numericCount = Math.max(0, parseInt(String(count), 10) || 0);
+
+  const handleBoxChange = (index: number, val: string) => {
+    const newScores = [...scores];
+    if (val === '') {
+      newScores[index] = '';
+    } else {
+      const num = Math.max(0, Math.min(maxMarkPerBox, parseFloat(val) || 0));
+      newScores[index] = num;
+    }
+    onScoresChange(newScores);
+  };
+
+  const handleCountInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      onCountChange('');
+      return;
+    }
+    const val = parseInt(raw, 10);
+    const safeVal = isNaN(val) ? 0 : Math.max(0, Math.min(20, val));
+    onCountChange(safeVal);
+  };
+
+  const incrementCount = () => {
+    if (numericCount < 20) {
+      onCountChange(numericCount + 1);
+    }
+  };
+
+  const decrementCount = () => {
+    if (numericCount > 0) {
+      onCountChange(numericCount - 1);
+    }
+  };
+
+  const sum = scores
+    .slice(0, numericCount)
+    .reduce<number>((acc, curr) => acc + (curr === '' || isNaN(Number(curr)) ? 0 : Number(curr)), 0);
+  const maxPossibleSum = numericCount * maxMarkPerBox;
+
+  return (
+    <div className="p-4 sm:p-5 flex flex-col justify-between h-full bg-white">
+      {/* Category Header - no horizontal underline */}
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-[#172554] text-white shrink-0">
+              {category === 'assignment' ? (
+                <FileText className="w-5 h-5" />
+              ) : (
+                <FlaskConical className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-[#172554] uppercase tracking-wide">{title}</h4>
+              <span className="text-xs font-semibold text-[#1e3a8a]">
+                Weightage: {weight}%
+              </span>
+            </div>
+          </div>
+
+          {/* Stepper with the word "number" */}
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <label
+              htmlFor={`count-${category}-${caName}`}
+              className="text-xs font-bold text-[#172554] uppercase tracking-wider"
+            >
+              Number:
+            </label>
+            <div className="flex items-center border border-[#172554] bg-white">
+              <button
+                type="button"
+                onClick={decrementCount}
+                disabled={numericCount <= 0}
+                aria-label="Decrease number"
+                className="p-1.5 text-[#172554] hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-r border-slate-300"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                id={`count-${category}-${caName}`}
+                type="number"
+                min={0}
+                max={20}
+                value={count === '' || count === undefined ? '' : count}
+                placeholder="0"
+                onChange={handleCountInputChange}
+                className="w-12 text-center text-xs font-bold py-1 bg-white text-[#172554] focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={incrementCount}
+                disabled={numericCount >= 20}
+                aria-label="Increase number"
+                className="p-1.5 text-[#172554] hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-l border-slate-300"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Entries: Separated only by simple vertical lines with no horizontal borders */}
+        {numericCount === 0 ? (
+          <div className="py-4 text-center text-[#172554] text-xs my-2">
+            <p className="font-medium text-slate-600">
+              Set the number of {category === 'assignment' ? 'assignments' : 'lab practical evaluations'} above
+            </p>
+          </div>
+        ) : (
+          <div className="my-4 overflow-x-auto bg-white">
+            <div className="flex divide-x divide-slate-200 min-w-max border-x border-slate-200">
+              {Array.from({ length: numericCount }).map((_, idx) => {
+                const displayIndex = startIndex + idx;
+                const rawScore = scores[idx];
+                const displayVal = rawScore === undefined || rawScore === null ? '' : rawScore;
+
+                return (
+                  <div
+                    key={idx}
+                    className="p-3 flex flex-col items-center justify-center min-w-[112px] hover:bg-slate-50 transition-colors"
+                  >
+                    <span className="text-[11px] font-bold text-[#172554] mb-1.5 whitespace-nowrap">
+                      {category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`}
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={maxMarkPerBox}
+                        step={0.5}
+                        value={displayVal}
+                        placeholder="0"
+                        onChange={(e) => handleBoxChange(idx, e.target.value)}
+                        aria-label={`${category === 'assignment' ? 'Assignment' : 'Lab Evaluation'} ${displayIndex} mark out of ${maxMarkPerBox}`}
+                        className="w-12 py-0.5 px-1.5 text-xs font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] text-center"
+                      />
+                      <span className="text-xs font-bold text-[#1e3a8a]">/{maxMarkPerBox}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Marks Contributed for Total at bottom: NO horizontal line and NO rectangular box */}
+      <div className="mt-4 pt-3 space-y-1.5 border-t border-slate-200">
+        <div className="flex items-center justify-between text-xs text-[#172554]">
+          <span className="font-medium">Total Marks Obtained:</span>
+          <span className="font-bold">
+            {sum} / {maxPossibleSum}
+          </span>
+        </div>
+
+        <div className="flex items-baseline justify-between text-[#172554] pt-1">
+          <span className="text-xs font-bold uppercase tracking-wider">
+            MARKS:
+          </span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-lg font-black tabular-nums">
+              {calculatedPoints.toFixed(2)}
+            </span>
+            <span className="text-xs font-bold text-[#1e3a8a]">/ {weight}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

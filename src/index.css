@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  accent-color: #1e3a8a;
+}
+
+@layer base {
+  *, *::before, *::after {
+    border-radius: 0 !important;
+  }
+
+  body, input, button, select, textarea {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #0f172a;
+    background-color: #f1f5f9;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: normal;
+    font-feature-settings: "zero" 0;
+  }
+
+  ::selection {
+    color: #fff;
+    background: #1e3a8a;
+  }
+
+  :where(button, a) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(input, select, textarea) {
+    caret-color: #172554;
+  }
+
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  :where(*::-webkit-scrollbar) {
+    width: 10px;
+    height: 10px;
+  }
+
+  :where(*::-webkit-scrollbar-thumb) {
+    background: #94a3b8;
+    border: 3px solid #f1f5f9;
+  }
+
+  :where(*::-webkit-scrollbar-track) {
+    background: #f1f5f9;
+  }
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #b45309;
+  outline-offset: 2px;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "zero" 0;
+}
