@@ -29,32 +29,87 @@ function scoresComplete(countValue: number | string, scores: (number | string)[]
   return scores.length >= count && scores.slice(0, count).every(entered);
 }
 
-function subjectMarksComplete(subject: SubjectData): boolean {
+function subjectMarksComplete(subject: SubjectData, allowEstimatedMarks = false): boolean {
   if (!subject.name?.trim()) return false;
 
   const weights = getCourseWeights(getCourseType(subject));
 
   if (!entered(subject.test1) || !entered(subject.test2)) return false;
   if (!entered(subject.act1No) || !entered(subject.act2No)) return false;
-  if (!scoresComplete(subject.act1No, subject.act1Scores)) return false;
-  if (!scoresComplete(subject.act2No, subject.act2Scores)) return false;
+  if (!scoresCompleteOrEstimated(subject.act1No, subject.act1Scores, allowEstimatedMarks)) return false;
+  if (!scoresCompleteOrEstimated(subject.act2No, subject.act2Scores, allowEstimatedMarks)) return false;
 
   if (weights.labWeight > 0) {
     if (!entered(subject.lab1No) || !entered(subject.lab2No)) return false;
-    if (!scoresComplete(subject.lab1No, subject.lab1Scores)) return false;
-    if (!scoresComplete(subject.lab2No, subject.lab2Scores)) return false;
+    if (!scoresCompleteOrEstimated(subject.lab1No, subject.lab1Scores, allowEstimatedMarks)) return false;
+    if (!scoresCompleteOrEstimated(subject.lab2No, subject.lab2Scores, allowEstimatedMarks)) return false;
   }
 
   if (weights.eseTheoryWeight > 0 && !entered(subject.ese)) return false;
-  if (weights.eseLabWeight > 0 && !entered(subject.eseLab)) return false;
+  if (weights.eseLabWeight > 0 && !entered(subject.eseLab) && !allowEstimatedMarks) return false;
 
   return true;
 }
 
-export function isGpaReady(subjects: SubjectData[]): boolean {
+function scoresCompleteOrEstimated(
+    countValue: number | string,
+    scores: (number | string)[],
+    includeEstimates: boolean
+  ): boolean {
+    if (!includeEstimates) return scoresComplete(countValue, scores);
+    if (!entered(countValue)) return false;
+    const count = Number(countValue);
+    return Number.isInteger(count) && count >= 0;
+}
+
+function estimateScores(
+    countValue: number | string,
+    estimatePercentage: number
+  ): (number | string)[] {
+    const count = Math.max(0, Math.floor(Number(countValue) || 0));
+    const estimateMark = (10 * estimatePercentage) / 100;
+    return Array.from({ length: count }, () => estimateMark);
+}
+
+export function applyEstimatedScores(subject: SubjectData, estimatePercentage: number): SubjectData {
+    const weights = getCourseWeights(getCourseType(subject));
+    return {
+      ...subject,
+      act1Scores: estimateScores(subject.act1No, estimatePercentage),
+      act2Scores: estimateScores(subject.act2No, estimatePercentage),
+      lab1Scores: weights.labWeight > 0
+        ? estimateScores(subject.lab1No, estimatePercentage)
+        : subject.lab1Scores,
+      lab2Scores: weights.labWeight > 0
+        ? estimateScores(subject.lab2No, estimatePercentage)
+        : subject.lab2Scores,
+      ...(weights.eseLabWeight > 0
+        ? {
+            eseLab:
+              ((Number(subject.eseLabMax) > 0 ? Number(subject.eseLabMax) : 100) * estimatePercentage) / 100,
+          }
+        : {}),
+    };
+}
+
+export function hasEstimateableComponents(subject: SubjectData): boolean {
+    const weights = getCourseWeights(getCourseType(subject));
+    return (
+      Number(subject.act1No) > 0 ||
+      Number(subject.act2No) > 0 ||
+      (weights.labWeight > 0 &&
+        (Number(subject.lab1No) > 0 || Number(subject.lab2No) > 0)) ||
+      weights.eseLabWeight > 0
+    );
+}
+
+export function isGpaReady(subjects: SubjectData[], includeEstimates = false): boolean {
   return GPA_COURSES.every((course) => {
     const subject = findCourseSubject(subjects, course);
-    return Boolean(subject && subjectMarksComplete(subject));
+    return Boolean(
+      subject &&
+        subjectMarksComplete(subject, includeEstimates)
+    );
   });
 }
 
@@ -62,21 +117,39 @@ interface GPACalculatorProps {
   subjects: SubjectData[];
   history: GpaHistoryEntry[];
   onCalculate: (entry: GpaHistoryEntry) => Promise<void>;
+  includeEstimates: boolean;
+  estimatePercentage: number;
+  onIncludeEstimatesChange: (include: boolean) => void;
+  onEstimatePercentageChange: (percentage: number) => void;
 }
 
-export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history, onCalculate }) => {
+export const GPACalculator: React.FC<GPACalculatorProps> = ({
+  subjects,
+  history,
+  onCalculate,
+  includeEstimates,
+  estimatePercentage,
+  onIncludeEstimatesChange,
+  onEstimatePercentageChange,
+}) => {
   const [calculatedSubjects, setCalculatedSubjects] = useState<SubjectData[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [calculationError, setCalculationError] = useState('');
-  const gpaReady = isGpaReady(subjects);
+  const gpaReady = isGpaReady(subjects, includeEstimates);
   const hasCalculated = gpaReady && calculatedSubjects === subjects;
 
   const rows = GPA_COURSES.map((course) => {
     const subject = findCourseSubject(subjects, course);
-    const result = subject && subjectMarksComplete(subject) ? calculateMarks(subject) : null;
+    const complete = Boolean(subject && subjectMarksComplete(subject, includeEstimates));
+    const usedEstimate = Boolean(includeEstimates && subject && hasEstimateableComponents(subject));
+    const calculationSubject = subject && usedEstimate
+      ? applyEstimatedScores(subject, estimatePercentage)
+      : subject;
+    const result = complete && calculationSubject ? calculateMarks(calculationSubject) : null;
     return {
       ...course,
       complete: Boolean(result),
+      usedEstimate,
       mark: result?.total ?? null,
       grade: result?.grade.letter ?? null,
       gradePoint: result?.grade.gradePoint ?? null,
@@ -100,6 +173,11 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
         totalCredits,
         weightedGradePoints: totalWeightedPoints,
         createdAtMs: Date.now(),
+        estimate: {
+          enabled: includeEstimates,
+          percentage: estimatePercentage,
+          appliedToCourses: rows.filter((row) => row.usedEstimate).length,
+        },
         courses: rows.map((row) => ({
           code: row.code,
           name: row.name,
@@ -137,6 +215,38 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
 
         <div className="mt-5 border border-blue-200 bg-blue-50 p-4 sm:p-5" role="status">
           <p className="font-bold text-[#172554]">Enter all 7 course marks to calculate your GPA.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#172554] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeEstimates}
+                onChange={(event) => onIncludeEstimatesChange(event.target.checked)}
+                className="h-4 w-4 accent-[#172554]"
+              />
+              <span>Include estimated lab &amp; activity average</span>
+            </label>
+            {includeEstimates && (
+              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                <span>Estimate</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={estimatePercentage}
+                  aria-label="Estimated lab and activity percentage"
+                  onChange={(event) => {
+                    const normalizedInput = event.currentTarget.value.replace(/^0+(?=\d)/, '');
+                    event.currentTarget.value = normalizedInput;
+                    const value = Number(normalizedInput);
+                    onEstimatePercentageChange(Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0)));
+                  }}
+                  className="w-14 border border-slate-300 bg-white px-1.5 py-1 text-center text-xs font-bold text-[#172554] focus:border-[#172554]"
+                />
+                <span>%</span>
+              </label>
+            )}
+          </div>
           <p className="text-xs font-bold text-[#172554] mt-3" aria-live="polite">
             {completedCourses} of 7 courses complete
           </p>
@@ -163,12 +273,12 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
                   <td className="px-4 py-3 text-center">{row.credits}</td>
                   <td className="px-4 py-3 text-center">
                     {row.complete ? (
-                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-800">
+                      <span className={`inline-flex items-center gap-1.5 font-bold ${row.usedEstimate ? 'text-amber-800' : 'text-emerald-800'}`}>
                         <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                        Complete
+                        {row.usedEstimate ? 'Estimated' : 'Complete'}
                       </span>
                     ) : (
-                      <span className="font-semibold text-slate-600">Marks needed</span>
+                      <span className="font-semibold text-slate-600">Input marks</span>
                     )}
                   </td>
                 </tr>
@@ -179,7 +289,11 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
 
         <div className="border-t border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-slate-600">
-            {gpaReady ? 'All 7 courses are complete. You can calculate your GPA.' : 'Complete the missing marks before calculating.'}
+            {gpaReady
+              ? includeEstimates && rows.some((row) => row.usedEstimate)
+                ? `Lab/activity marks calculated at ${estimatePercentage}%.`
+                : 'All 7 courses are complete. You can calculate your GPA.'
+              : 'Complete the missing marks before calculating.'}
           </p>
           <button
             type="button"
@@ -271,6 +385,7 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
                 <th scope="col" className="px-4 py-3">Calculated</th>
                 <th scope="col" className="px-4 py-3 text-center">Credits</th>
                 <th scope="col" className="px-4 py-3 text-center">GPA</th>
+                <th scope="col" className="px-4 py-3 text-center">Estimate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -279,6 +394,11 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects, history,
                   <td className="px-4 py-3">{new Date(entry.createdAtMs).toLocaleString()}</td>
                   <td className="px-4 py-3 text-center">{entry.totalCredits}</td>
                   <td className="px-4 py-3 text-center font-black text-[#172554]">{entry.gpa.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-center text-xs">
+                    {entry.estimate?.enabled && entry.estimate.appliedToCourses > 0
+                      ? `${entry.estimate.percentage}% (${entry.estimate.appliedToCourses} courses)`
+                      : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>

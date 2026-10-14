@@ -536,11 +536,6 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-[#172554] text-xs text-[#172554]">
-              <span>
-                Internal CA secured: <strong className="font-bold">{internalTotal.toFixed(2)}</strong> / {internalMax} marks
-              </span>
-            </div>
           </div>
         </div>
       )}

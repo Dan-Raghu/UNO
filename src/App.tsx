@@ -13,7 +13,11 @@ import { EndSemesterSection } from './components/EndSemesterSection';
 import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
 import { SubjectSelectionDialog } from './components/SubjectSelectionDialog';
-import { GPACalculator } from './components/GPACalculator';
+import {
+  applyEstimatedScores,
+  GPACalculator,
+  hasEstimateableComponents,
+} from './components/GPACalculator';
 import { GPA_COURSES } from './gpaCourses';
 import { AuthScreen } from './components/AuthScreen';
 import { auth, firebaseConfigReady } from './firebase';
@@ -159,6 +163,8 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   const [subjects, setSubjects] = useState<SubjectData[]>([]);
   const [currentSubjectId, setCurrentSubjectId] = useState('');
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
+  const [includeEstimates, setIncludeEstimates] = useState(false);
+  const [estimatePercentage, setEstimatePercentage] = useState(80);
   const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
   const [gpaHistory, setGpaHistory] = useState<GpaHistoryEntry[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -175,6 +181,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesSignatureRef = useRef('');
+  const calculationRevisionRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +207,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           currentSubjectId: selectedId,
           activeTab: workspace.preferences.activeTab,
         });
-        setIsDialogOpen(!loadedSubjects.some((subject) => subject.name.trim()));
+        setIsDialogOpen(false);
         setDataLoading(false);
       })
       .catch((error: unknown) => {
@@ -262,6 +269,10 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   const hasSubjectSelected = Boolean(currentSubject.name && currentSubject.name.trim().length > 0);
   const currentSubjectSignature = JSON.stringify(currentSubject);
   const hasCalculatedCurrentSubject = calculatedSignatures[currentSubject.id] === currentSubjectSignature;
+  const currentSubjectUsesEstimates = includeEstimates && hasEstimateableComponents(currentSubject);
+  const displayedSubject = currentSubjectUsesEstimates
+    ? applyEstimatedScores(currentSubject, estimatePercentage)
+    : currentSubject;
   const isComputationalThinking =
     currentSubject.code === 'CS23101' ||
     currentSubject.courseType === '1-0-2' ||
@@ -269,6 +280,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
   // Update specific fields of the current subject
   const updateCurrentSubject = (updates: Partial<SubjectData>) => {
+    calculationRevisionRef.current += 1;
     setSubjects((prev) =>
       prev.map((s) => {
         if (s.id !== currentSubject.id) return s;
@@ -294,12 +306,24 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     );
   };
 
+  const updateEstimateSettings = (nextEnabled: boolean, nextPercentage = estimatePercentage) => {
+    calculationRevisionRef.current += 1;
+    setIncludeEstimates(nextEnabled);
+    setEstimatePercentage(nextPercentage);
+    setCalculatedSignatures((previous) => {
+      const next = { ...previous };
+      delete next[currentSubject.id];
+      return next;
+    });
+  };
+
   const handleSelectSubjectFromDialog = (name: string, code: string, courseType: CourseType) => {
     updateCurrentSubject({ name, code, courseType });
     setIsDialogOpen(false);
   };
 
   const handleAddNewSubject = () => {
+    calculationRevisionRef.current += 1;
     const newId = `sub_${Date.now()}`;
     const newSub: SubjectData = {
       ...DEFAULT_SUBJECT,
@@ -315,6 +339,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
   const handleDeleteSubject = (idToDelete: string) => {
     if (subjects.length <= 1) return;
+    calculationRevisionRef.current += 1;
     const remaining = subjects.filter((s) => s.id !== idToDelete);
     setSubjects(remaining);
     if (currentSubjectId === idToDelete) {
@@ -370,26 +395,76 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
   const handleCalculateMarks = async () => {
     if (calculationBusy) return;
+    const revisionAtStart = calculationRevisionRef.current;
+    const subjectIdAtStart = currentSubjectId;
+    const subjectSnapshot: SubjectData = {
+      ...currentSubject,
+      act1Scores: [...currentSubject.act1Scores],
+      act2Scores: [...currentSubject.act2Scores],
+      lab1Scores: [...currentSubject.lab1Scores],
+      lab2Scores: [...currentSubject.lab2Scores],
+    };
+    const subjectsSnapshot = subjects.map((subject) => ({
+      ...subject,
+      act1Scores: [...subject.act1Scores],
+      act2Scores: [...subject.act2Scores],
+      lab1Scores: [...subject.lab1Scores],
+      lab2Scores: [...subject.lab2Scores],
+    }));
+    const estimateEnabledAtStart = includeEstimates;
+    const estimatePercentageAtStart = estimatePercentage;
+    const estimateWasApplied =
+      estimateEnabledAtStart && hasEstimateableComponents(subjectSnapshot);
+    const calculationSubject = estimateWasApplied
+      ? applyEstimatedScores(subjectSnapshot, estimatePercentageAtStart)
+      : subjectSnapshot;
+    const calculationBreakdown = calculateMarks(calculationSubject);
+    const inputSignature = JSON.stringify(subjectSnapshot);
+    const course = GPA_COURSES.find(
+      (item) => item.code === subjectSnapshot.code || item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase()
+    );
+
     setCalculationBusy(true);
     setSaveError('');
     try {
-      const inputSignature = JSON.stringify(currentSubject);
-      const course = GPA_COURSES.find(
-        (item) => item.code === currentSubject.code || item.name.toLowerCase() === currentSubject.name.trim().toLowerCase()
-      );
-      await saveCalculatedGrade(user.uid, currentSubject, {
+      const syncTask = persistQueueRef.current.then(async () => {
+        const latestSnapshots = await syncUserSubjects(
+          user.uid,
+          subjectsSnapshot,
+          persistedSubjectsRef.current
+        );
+        persistedSubjectsRef.current = latestSnapshots;
+      });
+      persistQueueRef.current = syncTask.catch(() => undefined);
+      await syncTask;
+
+      await saveCalculatedGrade(user.uid, subjectSnapshot, {
         inputSignature,
         credits: course?.credits ?? 0,
-        total: breakdown.total,
-        grade: breakdown.grade.letter,
-        gradeLabel: breakdown.grade.label,
-        gradePoint: breakdown.grade.gradePoint,
-        courseType: breakdown.courseTypeLabel,
+        total: calculationBreakdown.total,
+        grade: calculationBreakdown.grade.letter,
+        gradeLabel: calculationBreakdown.grade.label,
+        gradePoint: calculationBreakdown.grade.gradePoint,
+        courseType: calculationBreakdown.courseTypeLabel,
+        estimate: {
+          enabled: estimateWasApplied,
+          percentage: estimatePercentageAtStart,
+        },
       });
-      setCalculatedSignatures((previous) => ({ ...previous, [currentSubject.id]: inputSignature }));
+
+      const currentRevisionMatches = calculationRevisionRef.current === revisionAtStart;
+      const currentCourseMatches =
+        currentSubjectId === subjectIdAtStart &&
+        JSON.stringify(currentSubject) === inputSignature &&
+        includeEstimates === estimateEnabledAtStart &&
+        estimatePercentage === estimatePercentageAtStart;
+      if (currentRevisionMatches && currentCourseMatches) {
+        setCalculatedSignatures((previous) => ({ ...previous, [subjectIdAtStart]: inputSignature }));
+        setSaveError('');
+      }
     } catch (error) {
       console.error('Unable to save calculated grade:', error);
-      setSaveError('The result could not be saved. Check your connection and try calculating again.');
+      setSaveError('The latest marks or result could not be saved. Check your connection and recalculate.');
     } finally {
       setCalculationBusy(false);
     }
@@ -402,8 +477,8 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
   // Perform calculations
   const breakdown = useMemo(() => {
-    return calculateMarks(currentSubject);
-  }, [currentSubject]);
+    return calculateMarks(displayedSubject);
+  }, [displayedSubject]);
 
   const scrollToSummary = () => {
     const el = document.getElementById('summary-at-end');
@@ -450,7 +525,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           </a>
 
           {/* Quick status bar */}
-          {activeTab !== 'gpa' && <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
+          {activeTab === 'calculator' && <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
             {hasSubjectSelected && hasCalculatedCurrentSubject ? (
               <>
                 <span className="font-bold text-[#172554] uppercase tracking-wider">{currentSubject.name}:</span>
@@ -586,7 +661,10 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   >
                     <button
                       type="button"
-                      onClick={() => setCurrentSubjectId(sub.id)}
+                      onClick={() => {
+                        if (sub.id !== currentSubjectId) calculationRevisionRef.current += 1;
+                        setCurrentSubjectId(sub.id);
+                      }}
                       className="whitespace-nowrap !bg-transparent !text-inherit cursor-pointer"
                     >
                       {label}
@@ -655,7 +733,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         </div>
 
         {/* Subject Header with Dialog Box Trigger */}
-        {activeTab !== 'gpa' && (
+        {activeTab === 'calculator' && (
           <SubjectHeader
             subject={currentSubject}
             onOpenDialog={() => setIsDialogOpen(true)}
@@ -671,6 +749,47 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                 <div>
                   <div className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#172554] mb-2.5">
                     Course Type = {breakdown.courseTypeLabel}
+                  </div>
+
+                  <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border border-slate-300 bg-white px-3 py-2.5">
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#172554] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeEstimates}
+                        onChange={(event) => updateEstimateSettings(event.target.checked)}
+                        className="h-4 w-4 accent-[#172554]"
+                      />
+                      <span>Include estimated lab &amp; activity average</span>
+                    </label>
+                    {includeEstimates && (
+                      <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <span>Estimate</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={estimatePercentage}
+                          aria-label={`Estimated lab and activity percentage for ${currentSubject.name}`}
+                          onChange={(event) => {
+                            const normalizedInput = event.currentTarget.value.replace(/^0+(?=\d)/, '');
+                            event.currentTarget.value = normalizedInput;
+                            const value = Number(normalizedInput);
+                            updateEstimateSettings(
+                              includeEstimates,
+                              Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0))
+                            );
+                          }}
+                          className="w-14 border border-slate-300 bg-white px-1.5 py-1 text-center text-xs font-bold text-[#172554] focus:border-[#172554]"
+                        />
+                        <span>%</span>
+                      </label>
+                    )}
+                    {currentSubjectUsesEstimates && (
+                      <span className="text-[11px] font-semibold text-amber-800">
+                        Lab/activity marks calculated at {estimatePercentage}%
+                      </span>
+                    )}
                   </div>
 
                   {/* CA 1 Section */}
@@ -765,7 +884,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                 {/* Show the final marks and grade only after an explicit calculation. */}
                 {hasCalculatedCurrentSubject && (
                   <div id="summary-at-end" className="pt-2">
-                    <ResultsSummaryPanel breakdown={breakdown} subject={currentSubject} />
+                    <ResultsSummaryPanel breakdown={breakdown} subject={displayedSubject} />
                   </div>
                 )}
               </div>
@@ -801,10 +920,6 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
               <h2 className="text-lg font-black text-[#172554] mb-1 uppercase tracking-wide">
                 Table 11 – Grading of Courses
               </h2>
-              <p className="text-xs font-semibold text-slate-600 mb-4">
-                Official Letter Grades, Descriptions, and Grade Points.
-              </p>
-
               <div className="overflow-x-auto border border-slate-200">
                 <table className="w-full text-left text-sm border-collapse">
                   <thead>
@@ -893,7 +1008,17 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           </div>
         )}
     
-        {activeTab === 'gpa' && <GPACalculator subjects={subjects} history={gpaHistory} onCalculate={handleCalculateGpa} />}
+        {activeTab === 'gpa' && (
+          <GPACalculator
+            subjects={subjects}
+            history={gpaHistory}
+            onCalculate={handleCalculateGpa}
+            includeEstimates={includeEstimates}
+            estimatePercentage={estimatePercentage}
+            onIncludeEstimatesChange={(enabled) => updateEstimateSettings(enabled)}
+            onEstimatePercentageChange={(percentage) => updateEstimateSettings(includeEstimates, percentage)}
+          />
+        )}
 </main>
 
 

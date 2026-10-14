@@ -59,8 +59,15 @@
 }
 
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid #b45309;
+  outline: 2px solid #172554;
   outline-offset: 2px;
+}
+
+:where(input, select, textarea):focus {
+  outline: 2px solid #1e3a8a;
+  outline-offset: 1px;
+  border-color: #172554;
+  box-shadow: 0 0 0 3px rgb(30 58 138 / 18%);
 }
 
 input[type="number"] {

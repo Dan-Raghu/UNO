@@ -25,6 +25,11 @@ export interface GpaHistoryEntry {
     grade: string;
     gradePoint: number;
   }>;
+  estimate?: {
+    enabled: boolean;
+    percentage: number;
+    appliedToCourses: number;
+  };
 }
 
 export interface UserWorkspaceData {
@@ -147,6 +152,7 @@ export async function saveCalculatedGrade(
     gradeLabel: string;
     gradePoint: number;
     courseType: string;
+    estimate?: { enabled: boolean; percentage: number };
   }
 ) {
   await setDoc(
