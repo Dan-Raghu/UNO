@@ -12,7 +12,7 @@ import { EndSemesterSection } from './components/EndSemesterSection';
 import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
 import { SubjectSelectionDialog } from './components/SubjectSelectionDialog';
-import { GPACalculator, GpaLockedNotice, isGpaReady } from './components/GPACalculator';
+import { GPACalculator } from './components/GPACalculator';
 import {
   Calculator,
   TableProperties,
@@ -54,7 +54,7 @@ export default function App() {
     subjects[0]?.id || 'sub_1'
   );
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
-  const gpaReady = useMemo(() => isGpaReady(subjects), [subjects]);
+  const [calculatedSubject, setCalculatedSubject] = useState<SubjectData | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(() => {
     // Open dialog on load if user hasn't selected a course yet
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -81,6 +81,7 @@ export default function App() {
   }, [subjects, currentSubjectId]);
 
   const hasSubjectSelected = Boolean(currentSubject.name && currentSubject.name.trim().length > 0);
+  const hasCalculatedCurrentSubject = calculatedSubject === currentSubject;
   const isComputationalThinking =
     currentSubject.code === 'CS23101' ||
     currentSubject.courseType === '1-0-2' ||
@@ -177,8 +178,8 @@ export default function App() {
           </a>
 
           {/* Quick status bar */}
-          <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
-            {hasSubjectSelected ? (
+          {activeTab !== 'gpa' && <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
+            {hasSubjectSelected && hasCalculatedCurrentSubject ? (
               <>
                 <span className="font-bold text-[#172554] uppercase tracking-wider">{currentSubject.name}:</span>
                 <span className="font-semibold text-slate-600 bg-white px-1.5 py-0.5 border border-slate-300">
@@ -199,12 +200,14 @@ export default function App() {
                   <ArrowDown className="w-3.5 h-3.5" />
                 </button>
               </>
+            ) : hasSubjectSelected ? (
+              <span className="font-semibold text-slate-600">Enter marks and calculate to view the final result</span>
             ) : (
               <span className="font-bold text-slate-600 uppercase tracking-wider">
                 Select a Semester I subject
               </span>
             )}
-          </div>
+          </div>}
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-[#172554]">
@@ -234,14 +237,11 @@ export default function App() {
             </button>
             <button
               type="button"
-              disabled={!gpaReady}
               onClick={() => setActiveTab('gpa')}
-              title={gpaReady ? 'Open GPA Calculator' : 'Enter marks for all seven courses first'}
-              className={`transition-colors flex items-center gap-2 py-1 ${!gpaReady ? 'text-slate-400 cursor-not-allowed' : activeTab === 'gpa' ? 'text-[#172554] font-black border-b-2 border-[#172554] cursor-pointer' : 'text-slate-600 hover:text-[#172554] cursor-pointer'}`}
+              className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${activeTab === 'gpa' ? 'text-[#172554] font-black border-b-2 border-[#172554]' : 'text-slate-600 hover:text-[#172554]'}`}
             >
               <GraduationCap className="w-5 h-5" />
               <span>GPA Calculator</span>
-              {!gpaReady && <span className="text-[10px]">(Locked)</span>}
             </button>
           </nav>
         </div>
@@ -330,22 +330,22 @@ export default function App() {
           </button>
           <button
             type="button"
-            disabled={!gpaReady}
             onClick={() => setActiveTab('gpa')}
             aria-pressed={activeTab === 'gpa'}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-l border-slate-300 ${!gpaReady ? 'text-slate-400 cursor-not-allowed' : activeTab === 'gpa' ? 'bg-[#172554] text-white' : 'text-[#172554]'}`}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-l border-slate-300 ${activeTab === 'gpa' ? 'bg-[#172554] text-white' : 'text-[#172554]'}`}
           >
-            GPA {!gpaReady && '🔒'}
+            GPA
           </button>
         </div>
 
-        {!gpaReady && <div className="mb-6"><GpaLockedNotice /></div>}
         {/* Subject Header with Dialog Box Trigger */}
-        <SubjectHeader
-          subject={currentSubject}
-          onOpenDialog={() => setIsDialogOpen(true)}
-          onResetToBlank={handleReset}
-        />
+        {activeTab !== 'gpa' && (
+          <SubjectHeader
+            subject={currentSubject}
+            onOpenDialog={() => setIsDialogOpen(true)}
+            onResetToBlank={handleReset}
+          />
+        )}
 
         {activeTab === 'calculator' && (
           <>
@@ -434,10 +434,23 @@ export default function App() {
                   internalMax={breakdown.internalMax}
                 />
 
-                {/* THE SUMMARY AT THE END: Large text size, single organized table */}
-                <div id="summary-at-end" className="pt-2">
-                  <ResultsSummaryPanel breakdown={breakdown} subject={currentSubject} />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-slate-300 bg-white p-4">
+                  <button
+                    type="button"
+                    onClick={() => setCalculatedSubject(currentSubject)}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] transition-colors cursor-pointer"
+                  >
+                    <Calculator className="w-4 h-4" aria-hidden="true" />
+                    {hasCalculatedCurrentSubject ? 'Recalculate Mark & Grade' : 'Calculate Mark & Grade'}
+                  </button>
                 </div>
+
+                {/* Show the final marks and grade only after an explicit calculation. */}
+                {hasCalculatedCurrentSubject && (
+                  <div id="summary-at-end" className="pt-2">
+                    <ResultsSummaryPanel breakdown={breakdown} subject={currentSubject} />
+                  </div>
+                )}
               </div>
             ) : (
               /* Prompt when no subject has been selected yet from dialog box */
@@ -487,7 +500,7 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-xs sm:text-sm">
                     {GRADE_SCALE.map((grade) => {
-                      const isCurrent = hasSubjectSelected && breakdown.grade.letter === grade.letter;
+                      const isCurrent = hasCalculatedCurrentSubject && hasSubjectSelected && breakdown.grade.letter === grade.letter;
                       return (
                         <tr
                           key={grade.letter}
@@ -545,7 +558,7 @@ export default function App() {
                   <tbody>
                     <tr className="divide-x divide-[#172554] text-xs sm:text-sm font-bold text-[#172554]">
                       {GRADE_SCALE.map((g) => {
-                        const isCurrent = hasSubjectSelected && breakdown.grade.letter === g.letter;
+                        const isCurrent = hasCalculatedCurrentSubject && hasSubjectSelected && breakdown.grade.letter === g.letter;
                         return (
                           <td
                             key={g.letter}
@@ -563,9 +576,7 @@ export default function App() {
           </div>
         )}
     
-        {activeTab === 'gpa' && (
-          gpaReady ? <GPACalculator subjects={subjects} /> : <GpaLockedNotice />
-        )}
+        {activeTab === 'gpa' && <GPACalculator subjects={subjects} />}
 </main>
 
 

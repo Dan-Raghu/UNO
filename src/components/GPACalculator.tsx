@@ -1,5 +1,5 @@
-import React from 'react';
-import { GraduationCap, LockKeyhole } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle2, GraduationCap } from 'lucide-react';
 import type { SubjectData } from '../types';
 import {
   calculateMarks,
@@ -20,6 +20,13 @@ export const GPA_COURSES = [
   { code: 'CS23101', name: 'Computational Thinking', credits: 2 },
   { code: 'UC23H01', name: 'Heritage of Tamils', credits: 1 },
 ] as const;
+
+const findCourseSubject = (subjects: SubjectData[], course: (typeof GPA_COURSES)[number]) =>
+  subjects.find(
+    (subject) =>
+      subject.code === course.code ||
+      subject.name.trim().toLowerCase() === course.name.toLowerCase()
+  );
 
 const entered = (value: unknown): boolean =>
   value !== '' &&
@@ -58,7 +65,7 @@ function subjectMarksComplete(subject: SubjectData): boolean {
 
 export function isGpaReady(subjects: SubjectData[]): boolean {
   return GPA_COURSES.every((course) => {
-    const subject = subjects.find((item) => item.code === course.code);
+    const subject = findCourseSubject(subjects, course);
     return Boolean(subject && subjectMarksComplete(subject));
   });
 }
@@ -68,21 +75,27 @@ interface GPACalculatorProps {
 }
 
 export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
+  const [calculatedSubjects, setCalculatedSubjects] = useState<SubjectData[] | null>(null);
+  const gpaReady = isGpaReady(subjects);
+  const hasCalculated = gpaReady && calculatedSubjects === subjects;
+
   const rows = GPA_COURSES.map((course) => {
-    const subject = subjects.find((item) => item.code === course.code)!;
-    const result = calculateMarks(subject);
+    const subject = findCourseSubject(subjects, course);
+    const result = subject && subjectMarksComplete(subject) ? calculateMarks(subject) : null;
     return {
       ...course,
-      mark: result.total,
-      grade: result.grade.letter,
-      gradePoint: result.grade.gradePoint,
-      weightedPoints: course.credits * result.grade.gradePoint,
+      complete: Boolean(result),
+      mark: result?.total ?? null,
+      grade: result?.grade.letter ?? null,
+      gradePoint: result?.grade.gradePoint ?? null,
+      weightedPoints: result ? course.credits * result.grade.gradePoint : null,
     };
   });
 
   const totalCredits = rows.reduce((sum, row) => sum + row.credits, 0);
-  const totalWeightedPoints = rows.reduce((sum, row) => sum + row.weightedPoints, 0);
+  const totalWeightedPoints = rows.reduce((sum, row) => sum + (row.weightedPoints ?? 0), 0);
   const gpa = totalCredits ? totalWeightedPoints / totalCredits : 0;
+  const completedCourses = rows.filter((row) => row.complete).length;
 
   return (
     <section className="max-w-5xl mx-auto space-y-6">
@@ -101,87 +114,133 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({ subjects }) => {
           </div>
         </div>
 
-        <p className="text-sm text-slate-600 mt-4">
-          GPA is calculated from each course’s final mark, the app’s existing grade-point
-          scale, and the credits specified in the Semester I syllabus.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
-          <div className="bg-slate-50 border border-slate-200 p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Semester GPA</p>
-            <p className="text-3xl font-black text-[#172554] mt-1">{gpa.toFixed(2)}</p>
-            <p className="text-xs text-slate-500">Out of 10.00</p>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total Credits</p>
-            <p className="text-3xl font-black text-[#172554] mt-1">{totalCredits}</p>
-            <p className="text-xs text-slate-500">Across 7 courses</p>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Weighted Grade Points</p>
-            <p className="text-3xl font-black text-[#172554] mt-1">{totalWeightedPoints.toFixed(2)}</p>
-            <p className="text-xs text-slate-500">Credits × grade points</p>
-          </div>
+        <div className="mt-5 border border-blue-200 bg-blue-50 p-4 sm:p-5" role="status">
+          <p className="font-bold text-[#172554]">Enter all 7 course marks to calculate your GPA.</p>
+          <p className="text-sm text-slate-700 mt-1">
+            Use the course tabs above to complete all applicable assessment marks for each Semester I course.
+            Your final marks and grades will appear here after you select Calculate GPA.
+          </p>
+          <p className="text-xs font-bold text-[#172554] mt-3" aria-live="polite">
+            {completedCourses} of 7 courses complete
+          </p>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-300 shadow-sm overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3">Course</th>
-              <th className="px-4 py-3 text-center">Credits</th>
-              <th className="px-4 py-3 text-center">Final Mark</th>
-              <th className="px-4 py-3 text-center">Grade</th>
-              <th className="px-4 py-3 text-center">Grade Point</th>
-              <th className="px-4 py-3 text-center">Weighted Points</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {rows.map((row) => (
-              <tr key={row.code} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <p className="font-bold text-[#172554]">{row.name}</p>
-                  <p className="text-xs text-slate-500">{row.code}</p>
-                </td>
-                <td className="px-4 py-3 text-center">{row.credits}</td>
-                <td className="px-4 py-3 text-center">{row.mark.toFixed(2)}</td>
-                <td className="px-4 py-3 text-center font-bold">{row.grade}</td>
-                <td className="px-4 py-3 text-center">{row.gradePoint}</td>
-                <td className="px-4 py-3 text-center">{row.weightedPoints.toFixed(2)}</td>
+      <div className="bg-white border border-slate-300 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide">
+              <tr>
+                <th scope="col" className="px-4 py-3">Course</th>
+                <th scope="col" className="px-4 py-3 text-center">Credits</th>
+                <th scope="col" className="px-4 py-3 text-center">Marks status</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-slate-50 font-black text-[#172554]">
-            <tr>
-              <td className="px-4 py-3">Total</td>
-              <td className="px-4 py-3 text-center">{totalCredits}</td>
-              <td className="px-4 py-3 text-center">—</td>
-              <td className="px-4 py-3 text-center">—</td>
-              <td className="px-4 py-3 text-center">—</td>
-              <td className="px-4 py-3 text-center">{totalWeightedPoints.toFixed(2)}</td>
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {rows.map((row) => (
+                <tr key={row.code} className="hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <p className="font-bold text-[#172554]">{row.name}</p>
+                    <p className="text-xs text-slate-500">{row.code}</p>
+                  </td>
+                  <td className="px-4 py-3 text-center">{row.credits}</td>
+                  <td className="px-4 py-3 text-center">
+                    {row.complete ? (
+                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-800">
+                        <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                        Complete
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-slate-600">Marks needed</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-xs text-slate-600">
+            {gpaReady ? 'All 7 courses are complete. You can calculate your GPA.' : 'Complete the missing marks before calculating.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => setCalculatedSubjects(subjects)}
+            disabled={!gpaReady}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            <GraduationCap className="w-4 h-4" aria-hidden="true" />
+            Calculate GPA
+          </button>
+        </div>
       </div>
 
-      <p className="text-xs text-slate-500">
-        Formula: GPA = Σ (course credits × grade points) ÷ total credits.
-        Total Semester I credits: 21.
-      </p>
+      {hasCalculated && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white border border-slate-300 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Semester GPA</p>
+              <p className="text-3xl font-black text-[#172554] mt-1">{gpa.toFixed(2)}</p>
+              <p className="text-xs text-slate-500">Out of 10.00</p>
+            </div>
+            <div className="bg-white border border-slate-300 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total Credits</p>
+              <p className="text-3xl font-black text-[#172554] mt-1">{totalCredits}</p>
+              <p className="text-xs text-slate-500">Across 7 courses</p>
+            </div>
+            <div className="bg-white border border-slate-300 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Weighted Grade Points</p>
+              <p className="text-3xl font-black text-[#172554] mt-1">{totalWeightedPoints.toFixed(2)}</p>
+              <p className="text-xs text-slate-500">Credits × grade points</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-300 shadow-sm overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Course</th>
+                  <th scope="col" className="px-4 py-3 text-center">Credits</th>
+                  <th scope="col" className="px-4 py-3 text-center">Final Mark</th>
+                  <th scope="col" className="px-4 py-3 text-center">Grade</th>
+                  <th scope="col" className="px-4 py-3 text-center">Grade Point</th>
+                  <th scope="col" className="px-4 py-3 text-center">Weighted Points</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {rows.map((row) => (
+                  <tr key={row.code} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-[#172554]">{row.name}</p>
+                      <p className="text-xs text-slate-500">{row.code}</p>
+                    </td>
+                    <td className="px-4 py-3 text-center">{row.credits}</td>
+                    <td className="px-4 py-3 text-center">{row.mark?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-center font-bold">{row.grade}</td>
+                    <td className="px-4 py-3 text-center">{row.gradePoint}</td>
+                    <td className="px-4 py-3 text-center">{row.weightedPoints?.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-slate-50 font-black text-[#172554]">
+                <tr>
+                  <td className="px-4 py-3">Total</td>
+                  <td className="px-4 py-3 text-center">{totalCredits}</td>
+                  <td className="px-4 py-3 text-center">—</td>
+                  <td className="px-4 py-3 text-center">—</td>
+                  <td className="px-4 py-3 text-center">—</td>
+                  <td className="px-4 py-3 text-center">{totalWeightedPoints.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <p className="text-xs text-slate-500">
+            Formula: GPA = Σ (course credits × grade points) ÷ total credits. Total Semester I credits: 21.
+          </p>
+        </>
+      )}
     </section>
   );
 };
-
-export const GpaLockedNotice: React.FC = () => (
-  <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 text-amber-950">
-    <LockKeyhole className="w-5 h-5 mt-0.5 shrink-0" />
-    <div>
-      <p className="font-bold">GPA Calculator is locked</p>
-      <p className="text-sm mt-1">
-        Please enter marks for all 7 Semester I courses to unlock your GPA Calculator.
-        Fill in all applicable assessment marks for each course.
-      </p>
-    </div>
-  </div>
-);
