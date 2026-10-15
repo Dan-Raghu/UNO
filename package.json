@@ -24,6 +24,7 @@
     "vite": "^7.1.7"
   },
   "overrides": {
+    "@grpc/grpc-js": "1.13.6",
     "rollup": "npm:@rollup/wasm-node"
   }
 }
