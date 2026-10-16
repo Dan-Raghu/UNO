@@ -27,7 +27,7 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
   const hasLab = labWeight > 0;
   const isSelfDevelopment = breakdown.courseType === 'self-development';
   const isIndustryOrientedTests = breakdown.courseType === 'industry-oriented-tests';
-  const projectWorkComponents = breakdown.projectWorkComponents;
+  const projectWorkComponents = breakdown.projectWorkComponents ?? [];
 
   const test1MaxNum = Number(subject.test1Max) || 50;
   const test2MaxNum = Number(subject.test2Max) || 50;

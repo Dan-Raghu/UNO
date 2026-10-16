@@ -52,13 +52,13 @@ function subjectMarksComplete(subject: SubjectData, allowEstimatedMarks = false)
     return true;
   }
   if (weights.actWeight > 0) {
-    if (!entered(subject.act1No) || !entered(subject.act2No)) return false;
+    if (!allowEstimatedMarks && (!entered(subject.act1No) || !entered(subject.act2No))) return false;
     if (!scoresCompleteOrEstimated(subject.act1No, subject.act1Scores, allowEstimatedMarks)) return false;
     if (!scoresCompleteOrEstimated(subject.act2No, subject.act2Scores, allowEstimatedMarks)) return false;
   }
 
   if (weights.labWeight > 0) {
-    if (!entered(subject.lab1No) || !entered(subject.lab2No)) return false;
+    if (!allowEstimatedMarks && (!entered(subject.lab1No) || !entered(subject.lab2No))) return false;
     if (!scoresCompleteOrEstimated(subject.lab1No, subject.lab1Scores, allowEstimatedMarks)) return false;
     if (!scoresCompleteOrEstimated(subject.lab2No, subject.lab2Scores, allowEstimatedMarks)) return false;
   }
@@ -75,7 +75,7 @@ function scoresCompleteOrEstimated(
     includeEstimates: boolean
   ): boolean {
     if (!includeEstimates) return scoresComplete(countValue, scores);
-    if (!entered(countValue)) return false;
+    if (!entered(countValue)) return true;
     const count = Number(countValue);
     return Number.isInteger(count) && count >= 0;
 }
@@ -86,21 +86,25 @@ function estimateScores(
   ): (number | string)[] {
     const count = Math.max(0, Math.floor(Number(countValue) || 0));
     const estimateMark = (10 * estimatePercentage) / 100;
-    return Array.from({ length: count === 0 && entered(countValue) ? 1 : count }, () => estimateMark);
+    return Array.from({ length: count === 0 ? 1 : count }, () => estimateMark);
 }
 
 function estimatedCount(countValue: number | string): number | string {
-  return entered(countValue) && Number(countValue) === 0 ? 1 : countValue;
+  return !entered(countValue) || Number(countValue) === 0 ? 1 : countValue;
 }
 
 export function applyEstimatedScores(subject: SubjectData, estimatePercentage: number): SubjectData {
     const weights = getCourseWeights(getCourseType(subject));
     return {
       ...subject,
-      act1No: estimatedCount(subject.act1No),
-      act2No: estimatedCount(subject.act2No),
-      act1Scores: estimateScores(subject.act1No, estimatePercentage),
-      act2Scores: estimateScores(subject.act2No, estimatePercentage),
+      ...(weights.actWeight > 0
+        ? {
+            act1No: estimatedCount(subject.act1No),
+            act2No: estimatedCount(subject.act2No),
+            act1Scores: estimateScores(subject.act1No, estimatePercentage),
+            act2Scores: estimateScores(subject.act2No, estimatePercentage),
+          }
+        : {}),
       ...(weights.labWeight > 0
         ? {
             lab1No: estimatedCount(subject.lab1No),
@@ -124,14 +128,7 @@ export function applyEstimatedScores(subject: SubjectData, estimatePercentage: n
 
 export function hasEstimateableComponents(subject: SubjectData): boolean {
     const weights = getCourseWeights(getCourseType(subject));
-    return (
-      (entered(subject.act1No) && Number(subject.act1No) >= 0) ||
-      (entered(subject.act2No) && Number(subject.act2No) >= 0) ||
-      (weights.labWeight > 0 &&
-        ((entered(subject.lab1No) && Number(subject.lab1No) >= 0) ||
-          (entered(subject.lab2No) && Number(subject.lab2No) >= 0))) ||
-      weights.eseLabWeight > 0
-    );
+    return weights.actWeight > 0 || weights.labWeight > 0 || weights.eseLabWeight > 0;
 }
 
 export function isGpaReady(

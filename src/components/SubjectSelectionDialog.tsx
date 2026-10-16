@@ -15,7 +15,7 @@ export interface PresetCourse {
   electiveSlot?: string;
 }
 
-const ELECTIVE_SLOTS_BY_SEMESTER: Record<number, string[]> = {
+export const ELECTIVE_SLOTS_BY_SEMESTER: Record<number, string[]> = {
   5: ['Professional Elective I'],
   6: ['Professional Elective II', 'Professional Elective III'],
   7: ['Professional Elective IV', 'Professional Elective V', 'Professional Elective VI'],
@@ -509,15 +509,21 @@ export const PRESET_COURSES: PresetCourse[] = [
 interface SubjectSelectionDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectSubject: (name: string, code: string, courseType: CourseType) => void;
+  onSelectCourse: (course: PresetCourse) => void;
   currentSubjectName: string;
+  initialSemester?: SemesterNumber | null;
+  initialGroup?: 'core' | 'elective';
+  initialElectiveSlot?: string | null;
 }
 
 export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
   isOpen,
   onClose,
-  onSelectSubject,
+  onSelectCourse,
   currentSubjectName,
+  initialSemester,
+  initialGroup,
+  initialElectiveSlot,
 }) => {
   const [selectedSemester, setSelectedSemester] = useState<SemesterNumber>(1);
   const [selectedCourse, setSelectedCourse] = useState<PresetCourse>(PRESET_COURSES[0]);
@@ -539,12 +545,19 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
       return;
     }
 
-    const fallback = PRESET_COURSES.filter((course) => course.semester === selectedSemester)[0] ?? PRESET_COURSES[0];
+    const semester = initialSemester ?? selectedSemester;
+    const group = initialGroup ?? 'core';
+    const slot = initialElectiveSlot ?? ELECTIVE_SLOTS_BY_SEMESTER[semester]?.[0] ?? null;
+    const fallback = PRESET_COURSES.find((course) =>
+      course.semester === semester && (group === 'elective'
+        ? course.group === 'elective' && course.electiveSlot === slot
+        : course.group !== 'elective')
+    ) ?? PRESET_COURSES.find((course) => course.semester === semester) ?? PRESET_COURSES[0];
     setSelectedSemester(fallback.semester);
     setSelectedCourse(fallback);
     setSelectedCourseGroup(fallback.group === 'elective' ? 'elective' : 'core');
-    setSelectedElectiveSlot(fallback.electiveSlot ?? null);
-  }, [isOpen, currentSubjectName, selectedSemester]);
+    setSelectedElectiveSlot(fallback.electiveSlot ?? slot);
+  }, [isOpen, currentSubjectName, initialSemester, initialGroup, initialElectiveSlot]);
 
   const electiveSlots = ELECTIVE_SLOTS_BY_SEMESTER[selectedSemester] ?? [];
   const filteredCourses = PRESET_COURSES.filter((course) => {
@@ -568,7 +581,7 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    onSelectSubject(selectedCourse.name, selectedCourse.code, selectedCourse.courseType);
+    onSelectCourse(selectedCourse);
     onClose();
   };
 
