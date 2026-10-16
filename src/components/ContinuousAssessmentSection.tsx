@@ -12,6 +12,9 @@ interface ContinuousAssessmentSectionProps {
   testPoints: number;
   testWeight?: number;
   allowCustomTestMax?: boolean;
+  isSelfDevelopment?: boolean;
+  testDisplayName?: string;
+  isTwoTestCourse?: boolean;
 
   actNo: number | string;
   onActNoChange: (val: number | string) => void;
@@ -44,6 +47,9 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
   testPoints,
   testWeight = 15,
   allowCustomTestMax = false,
+  isSelfDevelopment = false,
+  testDisplayName,
+  isTwoTestCourse = false,
   actNo,
   onActNoChange,
   actScores,
@@ -63,6 +69,8 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
   estimatedMarks = false,
 }) => {
   const hasLab = labWeight > 0;
+  const hasActivities = actWeight > 0;
+  const testColumnClass = hasLab ? 'lg:col-span-4' : hasActivities ? 'lg:col-span-6' : 'lg:col-span-12';
   const currentMax = allowCustomTestMax
     ? Math.max(1, Number(testMax) || 50)
     : (Number(testMax) === 30 ? 30 : 50);
@@ -73,9 +81,9 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-5 bg-[#172554] text-white">
         <div className="flex items-center gap-3">
           <span className="px-2.5 py-0.5 bg-white text-[#172554] font-black text-sm uppercase">
-            CA {number}
+            {isTwoTestCourse ? `TEST ${number}` : `CA ${number}`}
           </span>
-          <h3 className="text-base sm:text-lg font-bold tracking-wide">{title}</h3>
+          <h3 className="text-base sm:text-lg font-bold tracking-wide">{isTwoTestCourse ? testDisplayName : title}</h3>
         </div>
 
         {/* Subtotal without enclosing rectangular border box */}
@@ -95,7 +103,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
       {/* Categories separated by simple vertical formal navy line */}
       <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
         {/* Category 1: Written Examination (weight depends on course type) */}
-        <div className={`${hasLab ? 'lg:col-span-4' : 'lg:col-span-6'} p-4 sm:p-5 flex flex-col justify-between bg-white`}>
+        <div className={`${testColumnClass} p-4 sm:p-5 flex flex-col justify-between bg-white`}>
           <div>
             {/* Header - no horizontal underline */}
             <div className="flex items-center justify-between mb-4">
@@ -105,7 +113,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-[#172554] uppercase tracking-wide">
-                    CA Test {number}
+                    {testDisplayName ?? `CA Test ${number}`}
                   </h4>
                   <span className="text-xs font-semibold text-[#1e3a8a]">
                     Weightage: {testWeight}%
@@ -126,7 +134,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                   </label>
                   {/* Preset quick buttons */}
                   <div className="flex items-center gap-1">
-                    {[20, 25, 30, 50].map((presetVal) => (
+                    {(isTwoTestCourse ? [] : [20, 25, 30, 50]).map((presetVal) => (
                       <button
                         key={presetVal}
                         type="button"
@@ -149,7 +157,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                     min={1}
                     step={1}
                     value={testMax === '' || testMax === undefined ? '' : testMax}
-                    placeholder="Enter maximum marks - e.g. 25, 30, 50"
+                    placeholder={isTwoTestCourse ? 'Enter this test’s maximum marks' : 'Enter maximum marks - e.g. 25, 30, 50'}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === '') {
@@ -166,7 +174,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                  Enter maximum marks or select a preset
+                  {isTwoTestCourse ? 'Enter the maximum marks for this test.' : 'Enter maximum marks or select a preset'}
                 </p>
               </div>
             ) : (
@@ -202,7 +210,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                 htmlFor={`test-scored-${number}`}
                 className="block text-xs font-bold text-[#172554] uppercase tracking-wider mb-1.5"
               >
-                Marks Scored in Test:
+                {isTwoTestCourse ? `Marks Scored in ${testDisplayName}:` : 'Marks Scored in Test:'}
               </label>
               <div className="relative">
                 <input
@@ -247,9 +255,9 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
         </div>
 
         {/* Category 2: Assignments / Activities (weight depends on course type) */}
-        <div className={`${hasLab ? 'lg:col-span-4' : 'lg:col-span-6'} bg-white`}>
+        {hasActivities && <div className={`${hasLab ? 'lg:col-span-4' : 'lg:col-span-6'} bg-white`}>
           <DynamicScoreBoxes
-            title={hasLab ? 'Assignments' : 'Activities'}
+            title={hasLab && !isSelfDevelopment ? 'Assignments' : 'Activities'}
             category="assignment"
             count={actNo}
             onCountChange={onActNoChange}
@@ -262,7 +270,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
             caName={`CA ${number}`}
             estimatedMarks={estimatedMarks}
           />
-        </div>
+        </div>}
 
         {/* Category 3: Lab Practical Evaluations (only for courses with a lab component) */}
         {hasLab && (

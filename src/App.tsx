@@ -13,6 +13,7 @@ import { EndSemesterSection } from './components/EndSemesterSection';
 import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
 import { SubjectSelectionDialog } from './components/SubjectSelectionDialog';
+import { ProjectWorkAssessmentSection } from './components/ProjectWorkAssessmentSection';
 import {
   applyEstimatedScores,
   GPACalculator,
@@ -287,6 +288,9 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     currentSubject.code === 'CS23101' ||
     currentSubject.courseType === '1-0-2' ||
     Boolean(currentSubject.name && currentSubject.name.toLowerCase().includes('computational'));
+  const isIndustryOrientedTests =
+    currentSubject.courseType === 'industry-oriented-tests' ||
+    currentSubject.name.trim().toLowerCase() === 'industry oriented course i';
 
   // Update specific fields of the current subject
   const updateCurrentSubject = (updates: Partial<SubjectData>) => {
@@ -431,7 +435,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     const calculationBreakdown = calculateMarks(calculationSubject);
     const inputSignature = JSON.stringify(subjectSnapshot);
     const course = GPA_COURSES.find(
-      (item) => item.code === subjectSnapshot.code || item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase()
+      (item) => (Boolean(item.code) && item.code === subjectSnapshot.code) || item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase() || (item.code === 'CS23801' && ['project', 'project-work'].includes(subjectSnapshot.courseType ?? ''))
     );
 
     setCalculationBusy(true);
@@ -761,6 +765,13 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                     Course Type = {breakdown.courseTypeLabel}
                   </div>
 
+                  {currentSubject.courseType === 'project' && (
+                    <div className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs sm:text-sm text-amber-900">
+                      <span className="font-black uppercase tracking-wider">Internship cum Project Work:</span>{' '}
+                      Using the app’s existing 60% CA / 40% ESE calculation. Project Work alone uses the separate Table 6 review, thesis-report, and viva-voce rubric.
+                    </div>
+                  )}
+
                   <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border border-slate-300 bg-white px-3 py-2.5">
                     <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#172554] cursor-pointer">
                       <input
@@ -802,17 +813,29 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                     )}
                   </div>
 
+                  {breakdown.courseType === 'project-work' ? (
+                    <ProjectWorkAssessmentSection
+                      marks={currentSubject.projectWorkMarks ?? {
+                        reviewI: '', reviewII: '', reviewIII: '', thesisGuide: '', thesisExternal: '', vivaExternal: '', vivaInternal: '',
+                      }}
+                      onMarksChange={(projectWorkMarks) => updateCurrentSubject({ projectWorkMarks })}
+                    />
+                  ) : (
+                  <>
                   {/* CA 1 Section */}
                   <ContinuousAssessmentSection
                     number={1}
-                    title="Continuous Assessment 1"
+                    title={isIndustryOrientedTests ? 'Mid Term Test' : 'Continuous Assessment 1'}
                     testMax={currentSubject.test1Max}
                     test={currentSubject.test1}
                     onTestMaxChange={(val) => updateCurrentSubject({ test1Max: val })}
                     onTestChange={(val) => updateCurrentSubject({ test1: val })}
                     testPoints={breakdown.test1_p}
                     testWeight={breakdown.testWeight}
-                    allowCustomTestMax={isComputationalThinking}
+                    allowCustomTestMax={isComputationalThinking || isIndustryOrientedTests}
+                    testDisplayName={isIndustryOrientedTests ? 'MID TERM TEST' : undefined}
+                    isTwoTestCourse={isIndustryOrientedTests}
+                    isSelfDevelopment={breakdown.courseType === 'self-development'}
                     actNo={displayedSubject.act1No}
                     onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
                     actScores={displayedSubject.act1Scores}
@@ -831,19 +854,21 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                     caMax={breakdown.caMax}
                     estimatedMarks={currentSubjectUsesEstimates}
                   />
-                </div>
 
                 {/* CA 2 Section */}
                 <ContinuousAssessmentSection
                   number={2}
-                  title="Continuous Assessment 2"
+                  title={isIndustryOrientedTests ? 'End Course Test' : 'Continuous Assessment 2'}
                   testMax={currentSubject.test2Max}
                   test={currentSubject.test2}
                   onTestMaxChange={(val) => updateCurrentSubject({ test2Max: val })}
                   onTestChange={(val) => updateCurrentSubject({ test2: val })}
                   testPoints={breakdown.test2_p}
                   testWeight={breakdown.testWeight}
-                  allowCustomTestMax={isComputationalThinking}
+                  allowCustomTestMax={isComputationalThinking || isIndustryOrientedTests}
+                  testDisplayName={isIndustryOrientedTests ? 'END COURSE TEST' : undefined}
+                  isTwoTestCourse={isIndustryOrientedTests}
+                  isSelfDevelopment={breakdown.courseType === 'self-development'}
                   actNo={displayedSubject.act2No}
                   onActNoChange={(val) => updateCurrentSubject({ act2No: val })}
                   actScores={displayedSubject.act2Scores}
@@ -864,7 +889,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                 />
 
                 {/* End Semester Section */}
-                <EndSemesterSection
+                {!isIndustryOrientedTests && <EndSemesterSection
                   courseType={breakdown.courseType}
                   ese={currentSubject.ese}
                   onEseChange={(val) => updateCurrentSubject({ ese: val })}
@@ -880,7 +905,10 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   internalTotal={breakdown.internal_total}
                   internalMax={breakdown.internalMax}
                   estimatedLabMark={currentSubjectUsesEstimates && breakdown.eseLabWeight > 0}
-                />
+                />}
+                  </>
+                  )}
+                </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-slate-300 bg-white p-4">
                   <button

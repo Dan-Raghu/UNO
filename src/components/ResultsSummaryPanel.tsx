@@ -25,6 +25,9 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
   const caMax = breakdown.caMax;
   const internalMax = breakdown.internalMax;
   const hasLab = labWeight > 0;
+  const isSelfDevelopment = breakdown.courseType === 'self-development';
+  const isIndustryOrientedTests = breakdown.courseType === 'industry-oriented-tests';
+  const projectWorkComponents = breakdown.projectWorkComponents;
 
   const test1MaxNum = Number(subject.test1Max) || 50;
   const test2MaxNum = Number(subject.test2Max) || 50;
@@ -50,10 +53,34 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
     .reduce<number>((acc, v) => acc + (v === '' || isNaN(Number(v)) ? 0 : Number(v)), 0);
 
   const handleCopy = () => {
-    const eseText = isSplit
+    if (breakdown.projectWorkComponents) {
+      const componentLines = projectWorkComponents.map((component) =>
+        `- ${component.label}: ${component.score.toFixed(2)}/100 × ${component.weight}% = ${component.contribution.toFixed(2)}`
+      );
+      const projectText = [
+        'PROJECT WORK — TABLE 6',
+        `Course: ${subject.name || 'Project Work'}`,
+        'CONTINUOUS ASSESSMENT (60%)',
+        ...componentLines.slice(0, 3),
+        `CA subtotal: ${breakdown.internal_total.toFixed(2)} / 60`,
+        'END-SEMESTER EXAMINATION (40%)',
+        ...componentLines.slice(3),
+        `ESE subtotal: ${breakdown.ese_p.toFixed(2)} / 40`,
+        `FINAL TOTAL: ${breakdown.total.toFixed(2)} / 100`,
+        `FINAL GRADE: ${breakdown.grade.letter} — ${breakdown.grade.label} | Grade Point: ${breakdown.grade.gradePoint}`,
+      ].join('\n');
+      navigator.clipboard.writeText(projectText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+
+    const eseText = eseWeight === 0
+      ? 'END SEMESTER EXAMINATION: None (two-test course)'
+      : isSplit
       ? `END SEMESTER EXAMINATION:
 - ESE Theory Exam: Scored ${subject.ese || 0}/100 | Contributed: ${breakdown.ese_theory_p.toFixed(2)} / ${eseTheoryWeight.toFixed(2)}
-- ESE Lab Practical Exam: Scored ${subject.eseLab || 0}/${eseLabMaxNum} | Contributed: ${breakdown.ese_lab_p.toFixed(2)} / ${eseLabWeight.toFixed(2)}
+    - ESE ${isSelfDevelopment ? 'Practical' : 'Lab Practical'} Exam: Scored ${subject.eseLab || 0}/${eseLabMaxNum} | Contributed: ${breakdown.ese_lab_p.toFixed(2)} / ${eseLabWeight.toFixed(2)}
 ESE Subtotal: ${breakdown.ese_p.toFixed(2)} / ${eseWeight.toFixed(2)}`
       : isPracticalOnly
         ? `END SEMESTER EXAMINATION: Practical exam scored ${subject.eseLab || 0}/${eseLabMaxNum} | Contributed: ${breakdown.ese_lab_p.toFixed(2)} / ${eseLabWeight.toFixed(2)}`
@@ -62,15 +89,15 @@ ESE Subtotal: ${breakdown.ese_p.toFixed(2)} / ${eseWeight.toFixed(2)}`
 ACADEMIC MARKS & GRADE SUMMARY
 Course: ${subject.name || 'Course'} - ${breakdown.courseTypeLabel}
 ============================================================
-CONTINUOUS ASSESSMENT 1
-- CA Test 1: Scored ${subject.test1 || 0}/${test1MaxNum} | Contributed: ${breakdown.test1_p.toFixed(2)} / ${testWeight}
-- Assignments: Scored ${act1Sum}/${act1Count * 10} | Contributed: ${breakdown.act1_p.toFixed(2)} / ${actWeight}
-${hasLab ? `- Lab Practicals: Scored ${lab1Sum}/${lab1Count * 10} | Contributed: ${breakdown.lab1_p.toFixed(2)} / ${labWeight}\n` : ''}CA 1 Subtotal: ${breakdown.ca1_total.toFixed(2)} / ${caMax.toFixed(2)}
+${isIndustryOrientedTests ? 'MID TERM TEST' : 'CONTINUOUS ASSESSMENT 1'}
+- ${isIndustryOrientedTests ? 'MID TERM TEST' : 'CA Test 1'}: Scored ${subject.test1 || 0}/${test1MaxNum} | Contributed: ${breakdown.test1_p.toFixed(2)} / ${testWeight}
+${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act1Sum}/${act1Count * 10} | Contributed: ${breakdown.act1_p.toFixed(2)} / ${actWeight}\n` : ''}
+${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab1Sum}/${lab1Count * 10} | Contributed: ${breakdown.lab1_p.toFixed(2)} / ${labWeight}\n` : ''}CA 1 Subtotal: ${breakdown.ca1_total.toFixed(2)} / ${caMax.toFixed(2)}
 
-CONTINUOUS ASSESSMENT 2
-- CA Test 2: Scored ${subject.test2 || 0}/${test2MaxNum} | Contributed: ${breakdown.test2_p.toFixed(2)} / ${testWeight}
-- Assignments: Scored ${act2Sum}/${act2Count * 10} | Contributed: ${breakdown.act2_p.toFixed(2)} / ${actWeight}
-${hasLab ? `- Lab Practicals: Scored ${lab2Sum}/${lab2Count * 10} | Contributed: ${breakdown.lab2_p.toFixed(2)} / ${labWeight}\n` : ''}CA 2 Subtotal: ${breakdown.ca2_total.toFixed(2)} / ${caMax.toFixed(2)}
+${isIndustryOrientedTests ? 'END COURSE TEST' : 'CONTINUOUS ASSESSMENT 2'}
+- ${isIndustryOrientedTests ? 'END COURSE TEST' : 'CA Test 2'}: Scored ${subject.test2 || 0}/${test2MaxNum} | Contributed: ${breakdown.test2_p.toFixed(2)} / ${testWeight}
+${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act2Sum}/${act2Count * 10} | Contributed: ${breakdown.act2_p.toFixed(2)} / ${actWeight}\n` : ''}
+${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab2Sum}/${lab2Count * 10} | Contributed: ${breakdown.lab2_p.toFixed(2)} / ${labWeight}\n` : ''}CA 2 Subtotal: ${breakdown.ca2_total.toFixed(2)} / ${caMax.toFixed(2)}
 
 INTERNAL ASSESSMENT TOTAL: ${breakdown.internal_total.toFixed(2)} / ${internalMax.toFixed(2)}
 ${eseText}
@@ -170,7 +197,50 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
         </span>
       </div>
 
-      {/* Complete Organized Marks Distribution Table - horizontally scrollable on mobile */}
+      {projectWorkComponents ? (
+      <div className="border border-slate-200 bg-white overflow-x-auto">
+        <table className="min-w-[560px] w-full text-left border-collapse text-xs sm:text-sm">
+          <thead>
+            <tr className="bg-[#172554] text-white text-[11px] sm:text-xs uppercase tracking-wider font-extrabold">
+              <th className="py-2.5 px-3 sm:px-4">Table 6 component</th>
+              <th className="py-2.5 px-2 text-center">Weight</th>
+              <th className="py-2.5 px-3 text-right">Score / 100</th>
+              <th className="py-2.5 px-3 sm:px-4 text-right">Contributed</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {(['Continuous Assessment', 'End-Semester Examination'] as const).map((section) => {
+              const components = projectWorkComponents.filter((component) => component.section === section);
+              const weight = components.reduce((sum, component) => sum + component.weight, 0);
+              const contribution = components.reduce((sum, component) => sum + component.contribution, 0);
+              return (
+                <React.Fragment key={section}>
+                  <tr className="bg-slate-100 font-extrabold">
+                    <td colSpan={2} className="px-3 py-2 uppercase text-[#172554]">{section}</td>
+                    <td className="px-3 py-2 text-right text-[#172554]">{weight}%</td>
+                    <td className="px-3 py-2 text-right font-black text-[#172554]">{contribution.toFixed(2)} / {weight}</td>
+                  </tr>
+                  {components.map((component) => (
+                    <tr key={component.key} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-semibold text-[#172554]">{component.label}</td>
+                      <td className="px-2 py-2 text-center font-bold">{component.weight}%</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{component.score.toFixed(2)} / 100</td>
+                      <td className="px-3 py-2 text-right font-black tabular-nums">{component.contribution.toFixed(2)} / {component.weight}</td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
+            <tr className="bg-[#172554] text-white font-black">
+              <td colSpan={2} className="px-3 py-3 uppercase">Grand Total Score</td>
+              <td className="px-3 py-3 text-right">100%</td>
+              <td className="px-3 py-3 text-right tabular-nums">{breakdown.total.toFixed(2)} / 100</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      ) : (
+      /* Complete Organized Marks Distribution Table - horizontally scrollable on mobile */
       <div className="border border-slate-200 bg-white overflow-x-auto">
         <table className="min-w-[560px] w-full text-left border-collapse text-xs sm:text-sm">
           <thead>
@@ -185,7 +255,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* --- CA 1 Header --- */}
             <tr className="bg-slate-100 font-extrabold border-t-2 border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 uppercase text-[11px] sm:text-xs tracking-wider text-[#172554]">
-                Continuous Assessment 1
+                {isIndustryOrientedTests ? 'Mid Term Test' : 'Continuous Assessment 1'}
               </td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] text-[11px]">Max {caMax}M</td>
               <td className="py-2 px-3 sm:px-4 text-right text-[11px] sm:text-xs uppercase tracking-wider font-black text-[#172554]">
@@ -196,7 +266,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Test 1 */}
             <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                CA Test 1
+                {isIndustryOrientedTests ? 'MID TERM TEST' : 'CA Test 1'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{testWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -209,9 +279,9 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             </tr>
 
             {/* Assignments 1 */}
-            <tr className="hover:bg-slate-50 transition-colors">
+            {actWeight > 0 && <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                Assignments
+                {isSelfDevelopment ? 'Activities' : 'Assignments'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{actWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -221,7 +291,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
                 {breakdown.act1_p.toFixed(2)}{' '}
                 <span className="text-[10px] sm:text-xs font-bold text-[#1e3a8a]">/ {actWeight}</span>
               </td>
-            </tr>
+            </tr>}
 
             {/* Lab 1 */}
             {hasLab && (
@@ -243,7 +313,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 1 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                CA 1 Subtotal
+                {isIndustryOrientedTests ? 'Mid Term Test Total' : 'CA 1 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">
@@ -255,7 +325,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* --- CA 2 Header --- */}
             <tr className="bg-slate-100 font-extrabold border-t-2 border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 uppercase text-[11px] sm:text-xs tracking-wider text-[#172554]">
-                Continuous Assessment 2
+                {isIndustryOrientedTests ? 'End Course Test' : 'Continuous Assessment 2'}
               </td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] text-[11px]">Max {caMax}M</td>
               <td className="py-2 px-3 sm:px-4 text-right text-[11px] sm:text-xs uppercase tracking-wider font-black text-[#172554]">
@@ -266,7 +336,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Test 2 */}
             <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                CA Test 2
+                {isIndustryOrientedTests ? 'END COURSE TEST' : 'CA Test 2'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{testWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -279,9 +349,9 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             </tr>
 
             {/* Assignments 2 */}
-            <tr className="hover:bg-slate-50 transition-colors">
+            {actWeight > 0 && <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                Assignments
+                {isSelfDevelopment ? 'Activities' : 'Assignments'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{actWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -291,7 +361,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
                 {breakdown.act2_p.toFixed(2)}{' '}
                 <span className="text-[10px] sm:text-xs font-bold text-[#1e3a8a]">/ {actWeight}</span>
               </td>
-            </tr>
+            </tr>}
 
             {/* Lab 2 */}
             {hasLab && (
@@ -313,7 +383,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 2 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                CA 2 Subtotal
+                {isIndustryOrientedTests ? 'End Course Test Total' : 'CA 2 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">
@@ -325,7 +395,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Internal Total */}
             <tr className="bg-slate-200 font-black border-t-2 border-b-2 border-[#172554]">
               <td colSpan={2} className="py-2.5 px-3 sm:px-4 text-[#172554] uppercase tracking-wider text-[11px] sm:text-sm">
-                Internal Total
+                {isIndustryOrientedTests ? 'Two-Test Total' : 'Internal Total'}
               </td>
               <td className="py-2.5 px-3 text-right text-[#172554] font-black text-[11px]">{internalMax}%</td>
               <td className="py-2.5 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums text-sm sm:text-lg whitespace-nowrap">
@@ -335,6 +405,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             </tr>
 
             {/* ESE Rows */}
+            {eseWeight > 0 && <>
             {isSplit ? (
               <>
                 {/* ESE Theory */}
@@ -408,6 +479,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
                 </td>
               </tr>
             )}
+            </>}
 
             {/* GRAND TOTAL ROW */}
             <tr className="bg-[#172554] text-white font-black border-t-2 border-[#172554]">
@@ -425,6 +497,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 };

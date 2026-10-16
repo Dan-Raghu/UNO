@@ -12,14 +12,16 @@ import {
 const findCourseSubject = (subjects: SubjectData[], course: (typeof GPA_COURSES)[number]) =>
   subjects.find(
     (subject) =>
-      subject.code === course.code ||
+      (Boolean(course.code) && subject.code === course.code) ||
+      (course.code === 'CS23801' && ['project', 'project-work'].includes(getCourseType(subject))) ||
       subject.name.trim().toLowerCase() === course.name.toLowerCase()
   );
 
 const getGpaCourseSemester = (subject: SubjectData): number | null => {
   const match = GPA_COURSES.find(
     (course) =>
-      subject.code === course.code ||
+      (Boolean(course.code) && subject.code === course.code) ||
+      (course.code === 'CS23801' && ['project', 'project-work'].includes(getCourseType(subject))) ||
       subject.name.trim().toLowerCase() === course.name.toLowerCase()
   );
   return match ? match.semester : null;
@@ -43,10 +45,17 @@ function subjectMarksComplete(subject: SubjectData, allowEstimatedMarks = false)
 
   const weights = getCourseWeights(getCourseType(subject));
 
-  if (!entered(subject.test1) || !entered(subject.test2)) return false;
-  if (!entered(subject.act1No) || !entered(subject.act2No)) return false;
-  if (!scoresCompleteOrEstimated(subject.act1No, subject.act1Scores, allowEstimatedMarks)) return false;
-  if (!scoresCompleteOrEstimated(subject.act2No, subject.act2Scores, allowEstimatedMarks)) return false;
+  if (weights.testWeight > 0 && (!entered(subject.test1) || !entered(subject.test2))) return false;
+  if (weights.courseType === 'project-work') {
+    const marks = subject.projectWorkMarks;
+    if (!marks || Object.values(marks).some((value) => !entered(value))) return false;
+    return true;
+  }
+  if (weights.actWeight > 0) {
+    if (!entered(subject.act1No) || !entered(subject.act2No)) return false;
+    if (!scoresCompleteOrEstimated(subject.act1No, subject.act1Scores, allowEstimatedMarks)) return false;
+    if (!scoresCompleteOrEstimated(subject.act2No, subject.act2Scores, allowEstimatedMarks)) return false;
+  }
 
   if (weights.labWeight > 0) {
     if (!entered(subject.lab1No) || !entered(subject.lab2No)) return false;
@@ -140,6 +149,11 @@ export function isGpaReady(
     }
   }
 
+  const selectedSemester8Projects = subjects.filter((subject) =>
+    ['project', 'project-work'].includes(getCourseType(subject))
+  );
+  if (selectedSemester === 8 && selectedSemester8Projects.length > 1) return false;
+
   if (usedSemesters.size > 1) {
     return false;
   }
@@ -195,6 +209,8 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
     const result = complete && calculationSubject ? calculateMarks(calculationSubject) : null;
     return {
       ...course,
+      name: subject?.name ?? course.name,
+      code: subject?.code || course.code,
       complete: Boolean(result),
       usedEstimate,
       mark: result?.total ?? null,
@@ -270,7 +286,7 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
             className="border border-slate-300 bg-white px-2.5 py-2 text-sm font-bold text-[#172554] focus:border-[#172554]"
             aria-label="Select semester for GPA"
           >
-            {[1, 2, 3, 4].map((semester) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
               <option key={semester} value={semester}>
                 Semester {semester}
               </option>
@@ -326,7 +342,7 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-200">
               {rows.map((row) => (
-                <tr key={row.code} className="hover:bg-slate-50">
+                <tr key={`${row.semester}-${row.code || row.name}`} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <p className="font-bold text-[#172554]">{row.name}</p>
                     <p className="text-xs text-slate-500">{row.code}</p>

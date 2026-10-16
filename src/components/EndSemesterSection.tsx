@@ -22,6 +22,7 @@ interface EndSemesterSectionProps {
 }
 
 export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
+  courseType,
   ese,
   onEseChange,
   eseLab = '',
@@ -42,7 +43,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
   const hasLab = eseLabWeight > 0;
   const isSplit = hasTheory && hasLab; // theory + practical
   const isPracticalOnly = !hasTheory && hasLab; // practical exam is the whole ESE
-  const labName = isPracticalOnly ? 'Practical' : 'Lab';
+  const labName = isPracticalOnly || courseType === 'self-development' ? 'Practical' : 'Lab';
 
   const handleEseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -210,7 +211,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-[#172554] uppercase tracking-wide">
-                    {isPracticalOnly ? 'ESE Practical Exam' : 'ESE Lab Exam'}
+                    {isPracticalOnly || courseType === 'self-development' ? 'ESE Practical Exam' : 'ESE Lab Exam'}
                   </h4>
                   <span className="text-[11px] font-bold text-[#1e3a8a]">
                     Weightage: {eseLabWeight}%

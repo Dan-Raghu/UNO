@@ -10,13 +10,18 @@ export type CourseType =
   | '1+2'
   | '1+4'
   | '3+4'
-  | 'theory';
+  | 'theory'
+  | 'project'
+  | 'project-work'
+  | 'self-development'
+  | 'industry-oriented-tests';
 
 export interface SubjectData {
   id: string;
   name: string;
   code: string;
   courseType?: CourseType;
+  projectWorkMarks?: ProjectWorkMarks;
   
   // End Semester
   ese: number | string; // out of 100 (ESE Theory)
@@ -38,6 +43,25 @@ export interface SubjectData {
   act2Scores: (number | string)[];
   lab2No: number | string;
   lab2Scores: (number | string)[];
+}
+
+export interface ProjectWorkMarks {
+  reviewI: number | string;
+  reviewII: number | string;
+  reviewIII: number | string;
+  thesisGuide: number | string;
+  thesisExternal: number | string;
+  vivaExternal: number | string;
+  vivaInternal: number | string;
+}
+
+export interface ProjectWorkComponentResult {
+  key: keyof ProjectWorkMarks;
+  label: string;
+  section: 'Continuous Assessment' | 'End-Semester Examination';
+  weight: number;
+  score: number;
+  contribution: number;
 }
 
 export interface CalculationBreakdown {
@@ -77,6 +101,7 @@ export interface CalculationBreakdown {
   
   // Academic Grade
   grade: GradeInfo;
+  projectWorkComponents?: ProjectWorkComponentResult[];
 }
 
 export interface GradeInfo {
