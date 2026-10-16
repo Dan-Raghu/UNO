@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { SubjectData, CourseType } from './types';
+import { SubjectData } from './types';
 import {
   DEFAULT_SUBJECT,
   calculateMarks,
@@ -12,7 +12,19 @@ import { ContinuousAssessmentSection } from './components/ContinuousAssessmentSe
 import { EndSemesterSection } from './components/EndSemesterSection';
 import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
-import { SubjectSelectionDialog } from './components/SubjectSelectionDialog';
+import {
+  ELECTIVE_SLOTS_BY_SEMESTER,
+  PRESET_COURSES,
+  SubjectSelectionDialog,
+  type PresetCourse,
+  type SemesterNumber,
+} from './components/SubjectSelectionDialog';
+import {
+  SemesterCourseDashboard,
+  type CourseProgress,
+  type SemesterCourseRow,
+  type SemesterElectiveRow,
+} from './components/SemesterCourseDashboard';
 import { ProjectWorkAssessmentSection } from './components/ProjectWorkAssessmentSection';
 import {
   applyEstimatedScores,
@@ -35,29 +47,51 @@ import {
 import {
   Calculator,
   TableProperties,
-  Plus,
-  Trash2,
   ArrowDown,
-  BookOpen,
   GraduationCap,
   LogOut,
   LoaderCircle,
   AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
 
 const LEGACY_STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
 
-export const INITIAL_EMPTY_SUBJECT: SubjectData = {
-  ...DEFAULT_SUBJECT,
-  id: 'sub_1',
-  name: '',
-  code: '',
-  courseType: '2-0-2',
-};
+function findSubjectForCourse(subjects: SubjectData[], course: PresetCourse): SubjectData | undefined {
+  return subjects.find((subject) => {
+    if (course.code && subject.code === course.code) return true;
+    return subject.name.trim().toLowerCase() === course.name.toLowerCase() &&
+      (!subject.courseType || subject.courseType === course.courseType);
+  });
+}
+
+function findPresetForSubject(subject: SubjectData): PresetCourse | undefined {
+  return PRESET_COURSES.find((course) => {
+    if (course.code && subject.code === course.code) return true;
+    return subject.name.trim().toLowerCase() === course.name.toLowerCase() &&
+      (!subject.courseType || subject.courseType === course.courseType);
+  });
+}
+
+function hasEnteredSubjectMarks(subject: SubjectData): boolean {
+  const scalarMarks = [subject.ese, subject.eseLab, subject.test1, subject.test2,
+    subject.act1No, subject.act2No, subject.lab1No, subject.lab2No];
+  return scalarMarks.some((value) => value !== '' && value !== null && value !== undefined) ||
+    [...subject.act1Scores, ...subject.act2Scores, ...subject.lab1Scores, ...subject.lab2Scores]
+      .some((value) => value !== '' && value !== null && value !== undefined) ||
+    Object.values(subject.projectWorkMarks ?? {}).some((value) => value !== '' && value !== null && value !== undefined);
+}
+
+function getCourseProgress(subject: SubjectData | undefined, calculatedSignatures: Record<string, string>): CourseProgress {
+  if (!subject || !hasEnteredSubjectMarks(subject)) return 'Not started';
+  return calculatedSignatures[subject.id] === JSON.stringify(subject) ? 'Calculated' : 'Marks entered';
+}
 
 interface AuthenticatedAppProps {
-  user: User;
+  user: User | null;
+  guestMode: boolean;
   onSignOut: () => Promise<void>;
+  onExitGuest: () => void;
   signOutPending: boolean;
   signOutError: string;
 }
@@ -89,6 +123,7 @@ function WorkspaceLoading({ message }: { message: string }) {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [guestMode, setGuestMode] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
   const [authError, setAuthError] = useState('');
   const [signOutPending, setSignOutPending] = useState(false);
@@ -128,8 +163,34 @@ export default function App() {
     }
   };
 
+  const handleContinueAsGuest = () => {
+    setAuthError('');
+    setGuestMode(true);
+  };
+
+  const handleExitGuest = () => setGuestMode(false);
+
+  if (guestMode) {
+    return (
+      <AuthenticatedApp
+        key="guest-session"
+        user={null}
+        guestMode
+        onSignOut={handleSignOut}
+        onExitGuest={handleExitGuest}
+        signOutPending={false}
+        signOutError=""
+      />
+    );
+  }
+
   if (!firebaseConfigReady || !auth) {
-    return <AuthScreen configurationError="Firebase is not configured. Add the required VITE_FIREBASE_* values to src/.env.local and restart the development server." />;
+    return (
+      <AuthScreen
+        configurationError="Firebase is not configured. Account sign-in is unavailable, but you can continue as a guest."
+        onContinueAsGuest={handleContinueAsGuest}
+      />
+    );
   }
 
   if (!authResolved) return <WorkspaceLoading message="Checking your sign-in…" />;
@@ -147,29 +208,35 @@ export default function App() {
     );
   }
 
-  if (!user) return <AuthScreen />;
+  if (!user) return <AuthScreen onContinueAsGuest={handleContinueAsGuest} />;
 
   return (
     <AuthenticatedApp
       key={user.uid}
       user={user}
+      guestMode={false}
       onSignOut={handleSignOut}
+      onExitGuest={handleExitGuest}
       signOutPending={signOutPending}
       signOutError={signOutError}
     />
   );
 }
 
-function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: AuthenticatedAppProps) {
+function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPending, signOutError }: AuthenticatedAppProps) {
   const [subjects, setSubjects] = useState<SubjectData[]>([]);
   const [currentSubjectId, setCurrentSubjectId] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState<SemesterNumber | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
   const [includeEstimates, setIncludeEstimates] = useState(false);
   const [estimatePercentage, setEstimatePercentage] = useState(80);
   const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
   const [gpaHistory, setGpaHistory] = useState<GpaHistoryEntry[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dialogPurpose, setDialogPurpose] = useState<'course' | 'elective'>('course');
+  const [dialogElectiveSlot, setDialogElectiveSlot] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(Boolean(user));
   const [dataError, setDataError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -185,19 +252,27 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   const calculationRevisionRef = useRef(0);
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     setDataLoading(true);
     setDataError('');
     void loadUserWorkspace(user.uid)
       .then((workspace) => {
         if (cancelled) return;
-        const loadedSubjects = workspace.subjects.length ? workspace.subjects : [INITIAL_EMPTY_SUBJECT];
+        const loadedSubjects = workspace.subjects;
         const preferredId = workspace.preferences.currentSubjectId;
         const selectedId = loadedSubjects.some((subject) => subject.id === preferredId)
           ? preferredId
-          : loadedSubjects[0].id;
+          : loadedSubjects[0]?.id ?? '';
         setSubjects(loadedSubjects);
         setCurrentSubjectId(selectedId);
+        const firstMatchedCourse = loadedSubjects.map(findPresetForSubject).find(Boolean);
+        const savedSemester = workspace.preferences.selectedSemester;
+        const initialSemester = savedSemester !== null && savedSemester >= 1 && savedSemester <= 8
+          ? savedSemester as SemesterNumber
+          : firstMatchedCourse?.semester ?? null;
+        setSelectedSemester(initialSemester);
+        setIsEditorOpen(false);
         setActiveTab(workspace.preferences.activeTab);
         setIncludeEstimates(workspace.preferences.includeEstimates);
         setEstimatePercentage(workspace.preferences.estimatePercentage);
@@ -211,6 +286,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           activeTab: workspace.preferences.activeTab,
           includeEstimates: workspace.preferences.includeEstimates,
           estimatePercentage: workspace.preferences.estimatePercentage,
+          selectedSemester: initialSemester,
         });
         setIsDialogOpen(false);
         setDataLoading(false);
@@ -224,10 +300,10 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     return () => {
       cancelled = true;
     };
-  }, [user.uid, loadAttempt]);
+  }, [user?.uid, loadAttempt]);
 
   useEffect(() => {
-    if (dataLoading || dataError) return;
+    if (!user || dataLoading || dataError) return;
     const snapshot = [...subjects];
     const timeout = window.setTimeout(() => {
       persistQueueRef.current = persistQueueRef.current
@@ -246,15 +322,16 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         });
     }, 450);
     return () => window.clearTimeout(timeout);
-  }, [subjects, user.uid, dataLoading, dataError]);
+  }, [subjects, user?.uid, dataLoading, dataError]);
 
   useEffect(() => {
-    if (dataLoading || dataError || !currentSubjectId) return;
+    if (!user || dataLoading || dataError) return;
     const preferences = {
       currentSubjectId,
       activeTab,
       includeEstimates,
       estimatePercentage,
+      selectedSemester,
     };
     const signature = JSON.stringify(preferences);
     if (signature === preferencesSignatureRef.current) return;
@@ -271,7 +348,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
         });
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [currentSubjectId, activeTab, includeEstimates, estimatePercentage, user.uid, dataLoading, dataError]);
+  }, [currentSubjectId, activeTab, includeEstimates, estimatePercentage, selectedSemester, user?.uid, dataLoading, dataError]);
 
   const currentSubject = useMemo(() => {
     return subjects.find((s) => s.id === currentSubjectId) || subjects[0] || DEFAULT_SUBJECT;
@@ -301,18 +378,34 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
 
         const updated = { ...s, ...updates };
 
-        // Ensure dynamic arrays stay synced if counts changed without filling mock values
+        // Preserve existing scores and default newly added entries to 8 when estimates are off.
         if (updates.act1No !== undefined) {
+          const previousLength = updated.act1Scores.length;
           updated.act1Scores = syncScoresArray(updated.act1Scores, updates.act1No);
+          if (!includeEstimates) {
+            for (let index = previousLength; index < updated.act1Scores.length; index += 1) updated.act1Scores[index] = 8;
+          }
         }
         if (updates.act2No !== undefined) {
+          const previousLength = updated.act2Scores.length;
           updated.act2Scores = syncScoresArray(updated.act2Scores, updates.act2No);
+          if (!includeEstimates) {
+            for (let index = previousLength; index < updated.act2Scores.length; index += 1) updated.act2Scores[index] = 8;
+          }
         }
         if (updates.lab1No !== undefined) {
+          const previousLength = updated.lab1Scores.length;
           updated.lab1Scores = syncScoresArray(updated.lab1Scores, updates.lab1No);
+          if (!includeEstimates) {
+            for (let index = previousLength; index < updated.lab1Scores.length; index += 1) updated.lab1Scores[index] = 8;
+          }
         }
         if (updates.lab2No !== undefined) {
+          const previousLength = updated.lab2Scores.length;
           updated.lab2Scores = syncScoresArray(updated.lab2Scores, updates.lab2No);
+          if (!includeEstimates) {
+            for (let index = previousLength; index < updated.lab2Scores.length; index += 1) updated.lab2Scores[index] = 8;
+          }
         }
 
         return updated;
@@ -331,34 +424,51 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     });
   };
 
-  const handleSelectSubjectFromDialog = (name: string, code: string, courseType: CourseType) => {
-    updateCurrentSubject({ name, code, courseType });
+  const handleSemesterChange = (value: string) => {
+    const semester = Number(value) as SemesterNumber;
+    if (!Number.isInteger(semester) || semester < 1 || semester > 8) {
+      setSelectedSemester(null);
+      return;
+    }
+    setSelectedSemester(semester);
+    setIsEditorOpen(false);
+    setActiveTab('calculator');
+  };
+
+  const handleOpenPresetCourse = (course: PresetCourse) => {
+    calculationRevisionRef.current += 1;
+    const existing = findSubjectForCourse(subjects, course);
+    if (existing) {
+      setCurrentSubjectId(existing.id);
+    } else {
+      const newSubject: SubjectData = {
+        ...DEFAULT_SUBJECT,
+        id: `course_${course.id}`,
+        name: course.name,
+        code: course.code,
+        courseType: course.courseType,
+      };
+      setSubjects((previous) => previous.some((subject) => findSubjectForCourse(previous, course))
+        ? previous
+        : [...previous, newSubject]);
+      setCurrentSubjectId(newSubject.id);
+    }
+    setSelectedSemester(course.semester);
+    setActiveTab('calculator');
+    setIsEditorOpen(true);
     setIsDialogOpen(false);
   };
 
-  const handleAddNewSubject = () => {
-    calculationRevisionRef.current += 1;
-    const newId = `sub_${Date.now()}`;
-    const newSub: SubjectData = {
-      ...DEFAULT_SUBJECT,
-      id: newId,
-      name: '',
-      code: '',
-      courseType: '2-0-2',
-    };
-    setSubjects((prev) => [...prev, newSub]);
-    setCurrentSubjectId(newId);
-    setIsDialogOpen(true);
+  const handleOpenOtherCourse = (subject: SubjectData) => {
+    setCurrentSubjectId(subject.id);
+    setActiveTab('calculator');
+    setIsEditorOpen(true);
   };
 
-  const handleDeleteSubject = (idToDelete: string) => {
-    if (subjects.length <= 1) return;
-    calculationRevisionRef.current += 1;
-    const remaining = subjects.filter((s) => s.id !== idToDelete);
-    setSubjects(remaining);
-    if (currentSubjectId === idToDelete) {
-      setCurrentSubjectId(remaining[0].id);
-    }
+  const handleOpenElectivePicker = (slot: string) => {
+    setDialogPurpose('elective');
+    setDialogElectiveSlot(slot);
+    setIsDialogOpen(true);
   };
 
   const handleReset = () => {
@@ -372,7 +482,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   };
 
   const handleImportLegacy = async () => {
-    if (migrationBusy || legacySubjects.length === 0) return;
+    if (!user || migrationBusy || legacySubjects.length === 0) return;
     setMigrationBusy(true);
     setMigrationError('');
     try {
@@ -393,7 +503,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   };
 
   const handleSkipLegacy = async () => {
-    if (migrationBusy) return;
+    if (!user || migrationBusy) return;
     setMigrationBusy(true);
     setMigrationError('');
     try {
@@ -441,30 +551,32 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     setCalculationBusy(true);
     setSaveError('');
     try {
-      const syncTask = persistQueueRef.current.then(async () => {
-        const latestSnapshots = await syncUserSubjects(
-          user.uid,
-          subjectsSnapshot,
-          persistedSubjectsRef.current
-        );
-        persistedSubjectsRef.current = latestSnapshots;
-      });
-      persistQueueRef.current = syncTask.catch(() => undefined);
-      await syncTask;
+      if (user) {
+        const syncTask = persistQueueRef.current.then(async () => {
+          const latestSnapshots = await syncUserSubjects(
+            user.uid,
+            subjectsSnapshot,
+            persistedSubjectsRef.current
+          );
+          persistedSubjectsRef.current = latestSnapshots;
+        });
+        persistQueueRef.current = syncTask.catch(() => undefined);
+        await syncTask;
 
-      await saveCalculatedGrade(user.uid, subjectSnapshot, {
-        inputSignature,
-        credits: course?.credits ?? 0,
-        total: calculationBreakdown.total,
-        grade: calculationBreakdown.grade.letter,
-        gradeLabel: calculationBreakdown.grade.label,
-        gradePoint: calculationBreakdown.grade.gradePoint,
-        courseType: calculationBreakdown.courseTypeLabel,
-        estimate: {
-          enabled: estimateWasApplied,
-          percentage: estimatePercentageAtStart,
-        },
-      });
+        await saveCalculatedGrade(user.uid, subjectSnapshot, {
+          inputSignature,
+          credits: course?.credits ?? 0,
+          total: calculationBreakdown.total,
+          grade: calculationBreakdown.grade.letter,
+          gradeLabel: calculationBreakdown.grade.label,
+          gradePoint: calculationBreakdown.grade.gradePoint,
+          courseType: calculationBreakdown.courseTypeLabel,
+          estimate: {
+            enabled: estimateWasApplied,
+            percentage: estimatePercentageAtStart,
+          },
+        });
+      }
 
       const currentRevisionMatches = calculationRevisionRef.current === revisionAtStart;
       const currentCourseMatches =
@@ -485,7 +597,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   };
 
   const handleCalculateGpa = async (entry: GpaHistoryEntry) => {
-    await saveGpaHistory(user.uid, entry);
+    if (user) await saveGpaHistory(user.uid, entry);
     setGpaHistory((previous) => [entry, ...previous].sort((a, b) => b.createdAtMs - a.createdAtMs));
   };
 
@@ -493,6 +605,34 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
   const breakdown = useMemo(() => {
     return calculateMarks(displayedSubject);
   }, [displayedSubject]);
+
+  const semesterCourseRows = useMemo<SemesterCourseRow[]>(() => {
+    if (selectedSemester === null) return [];
+    return PRESET_COURSES
+      .filter((course) => course.semester === selectedSemester && course.group !== 'elective')
+      .map((course) => {
+        const subject = findSubjectForCourse(subjects, course) ?? null;
+        return { course, subject, progress: getCourseProgress(subject ?? undefined, calculatedSignatures) };
+      });
+  }, [selectedSemester, subjects, calculatedSignatures]);
+
+  const semesterElectiveRows = useMemo<SemesterElectiveRow[]>(() => {
+    if (selectedSemester === null) return [];
+    return (ELECTIVE_SLOTS_BY_SEMESTER[selectedSemester] ?? []).map((slot) => {
+      const existingOption = subjects
+        .map((subject) => ({ subject, course: findPresetForSubject(subject) }))
+        .filter((entry) => entry.course?.semester === selectedSemester && entry.course.group === 'elective' && entry.course.electiveSlot === slot)
+        .at(-1);
+      const course = existingOption?.course ?? null;
+      const subject = existingOption?.subject ?? null;
+      return { slot, course, subject, progress: getCourseProgress(subject ?? undefined, calculatedSignatures) };
+    });
+  }, [selectedSemester, subjects, calculatedSignatures]);
+
+  const otherCourseRows = useMemo(() => subjects
+    .filter((subject) => subject.name.trim() && !findPresetForSubject(subject))
+    .map((subject) => ({ subject, progress: getCourseProgress(subject, calculatedSignatures) })),
+  [subjects, calculatedSignatures]);
 
   const scrollToSummary = () => {
     const el = document.getElementById('summary-at-end');
@@ -529,13 +669,14 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand wordmark */}
-          <a href="#" className="text-base sm:text-lg font-black tracking-tight text-[#172554] flex items-center gap-2 transition-opacity hover:opacity-80">
+          <a href="#" className="shrink-0 text-base sm:text-lg font-black tracking-tight text-[#172554] flex items-center gap-2 transition-opacity hover:opacity-80">
             <span className="w-9 h-9 bg-[#172554] text-white flex items-center justify-center text-xs font-black shadow-sm">
               CA
             </span>
-            <span className="uppercase">Academic Marks Calculator</span>
+            <span className="hidden uppercase md:inline">Academic Marks Calculator</span>
+            <span className="text-[10px] uppercase leading-tight md:hidden">Marks<br />Calculator</span>
           </a>
 
           {/* Quick status bar */}
@@ -606,25 +747,64 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
             </button>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={user.email ?? undefined}>
-              {user.email}
+          <label className="ml-auto flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-[#172554]">
+            <span className="hidden md:inline">Semester</span>
+            <span className="relative">
+              <select
+                aria-label="Choose semester"
+                value={selectedSemester ?? ''}
+                onChange={(event) => handleSemesterChange(event.currentTarget.value)}
+                className="min-w-24 appearance-none border border-slate-300 bg-white py-2 pl-2.5 pr-7 text-xs font-bold text-[#172554] focus:border-[#172554] focus:outline-2 focus:outline-[#172554] sm:min-w-28 sm:pl-3 sm:pr-8"
+              >
+                <option value="">Choose…</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
+                  <option key={semester} value={semester}>Semester {semester}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" aria-hidden="true" />
             </span>
-            <button
-              type="button"
-              onClick={() => void onSignOut()}
-              disabled={signOutPending}
-              className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50 disabled:opacity-60"
-            >
-              {signOutPending ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <LogOut className="w-3.5 h-3.5" aria-hidden="true" />}
-              <span>{signOutPending ? 'Signing out' : 'Log out'}</span>
-            </button>
+          </label>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {user ? (
+              <>
+                <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={user.email ?? undefined}>
+                  {user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void onSignOut()}
+                  disabled={signOutPending}
+                  className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {signOutPending ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <LogOut className="w-3.5 h-3.5" aria-hidden="true" />}
+                  <span className="hidden md:inline">{signOutPending ? 'Signing out' : 'Log out'}</span>
+                  <span className="sr-only md:hidden">{signOutPending ? 'Signing out' : 'Log out'}</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onExitGuest}
+                className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50"
+              >
+                <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+                <span className="hidden md:inline">Exit guest session</span>
+                <span className="sr-only md:hidden">Exit guest session</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {guestMode && (
+          <div className="mb-5 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+            <strong className="font-black">Guest session:</strong>{' '}
+            Your courses and results exist only in memory and will be cleared when you reload or close this page.
+          </div>
+        )}
         {saveError && (
           <div className="mb-5 flex items-start justify-between gap-3 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">
             <span>{saveError}</span>
@@ -635,7 +815,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           <div className="mb-5 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">{signOutError}</div>
         )}
 
-        {!migrationResolved && legacySubjects.length > 0 && (
+        {user && !migrationResolved && legacySubjects.length > 0 && (
           <section className="mb-6 border border-amber-300 bg-amber-50 p-4 sm:p-5" aria-labelledby="migration-heading">
             <h2 id="migration-heading" className="font-black text-[#172554]">Existing browser data found</h2>
             <p className="mt-1 text-sm text-slate-700">
@@ -653,66 +833,6 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
             </div>
           </section>
         )}
-
-        {/* Course Tab Selector Bar */}
-        <div className="flex items-center justify-between pb-4 mb-6 overflow-x-auto gap-3 border-b border-slate-300">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#172554] whitespace-nowrap hidden sm:inline">
-              Courses:
-            </span>
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-              {subjects.map((sub, idx) => {
-                const isSelected = sub.id === currentSubject.id;
-                const label = sub.name || `Course ${idx + 1} - Unselected`;
-                return (
-                  <div
-                    key={sub.id}
-                    className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold transition-all border ${
-                      isSelected
-                        ? 'bg-[#172554] text-white border-[#172554]'
-                        : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (sub.id !== currentSubjectId) calculationRevisionRef.current += 1;
-                        setCurrentSubjectId(sub.id);
-                      }}
-                      className="whitespace-nowrap !bg-transparent !text-inherit cursor-pointer"
-                    >
-                      {label}
-                    </button>
-                    {subjects.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSubject(sub.id);
-                        }}
-                        aria-label={`Delete ${sub.name || 'course'}`}
-                        className={`p-0.5 transition-colors cursor-pointer ${
-                          isSelected ? 'text-slate-300 hover:text-white' : 'text-slate-500 hover:text-rose-600'
-                        }`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAddNewSubject}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider bg-white text-[#172554] border border-slate-300 hover:border-[#172554] hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Course</span>
-          </button>
-        </div>
 
         {/* Mobile Navigation Segmented Control */}
         <div className="grid grid-cols-3 md:hidden mb-6 border border-slate-300 bg-white shadow-sm">
@@ -746,18 +866,53 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
           </button>
         </div>
 
-        {/* Subject Header with Dialog Box Trigger */}
-        {activeTab === 'calculator' && (
-          <SubjectHeader
-            subject={currentSubject}
-            onOpenDialog={() => setIsDialogOpen(true)}
-            onResetToBlank={handleReset}
-          />
+        {activeTab === 'calculator' && selectedSemester === null && (
+          <section className="mx-auto my-12 max-w-xl border border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
+            <h1 className="text-xl font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">Select a semester from the menu at the top right to see its courses and start entering marks.</p>
+            <label className="mt-6 inline-flex flex-col items-start gap-2 text-xs font-bold uppercase tracking-wide text-[#172554]">
+              Semester
+              <select
+                aria-label="Choose semester to get started"
+                value=""
+                onChange={(event) => handleSemesterChange(event.currentTarget.value)}
+                className="min-w-48 border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold normal-case focus:border-[#172554] focus:outline-2 focus:outline-[#172554]"
+              >
+                <option value="" disabled>Choose a semester…</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
+                  <option key={semester} value={semester}>Semester {semester}</option>
+                ))}
+              </select>
+            </label>
+          </section>
         )}
 
-        {activeTab === 'calculator' && (
-          <>
-            {hasSubjectSelected ? (
+        {activeTab === 'calculator' && selectedSemester !== null && (
+          <div className={`grid min-w-0 items-start gap-6 ${isEditorOpen && hasSubjectSelected ? 'lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.8fr)]' : ''}`}>
+            <div className="min-w-0">
+              <SemesterCourseDashboard
+                semester={selectedSemester}
+                courses={semesterCourseRows}
+                electiveSlots={semesterElectiveRows}
+                otherCourses={otherCourseRows}
+                selectedSubjectId={isEditorOpen ? currentSubjectId : ''}
+                onSelectCourse={handleOpenPresetCourse}
+                onSelectElective={handleOpenElectivePicker}
+                onSelectOtherCourse={handleOpenOtherCourse}
+              />
+            </div>
+
+            {isEditorOpen && hasSubjectSelected && (
+              <div className="min-w-0">
+                <SubjectHeader
+                  subject={currentSubject}
+                  onOpenDialog={() => {
+                    setDialogPurpose('course');
+                    setDialogElectiveSlot(null);
+                    setIsDialogOpen(true);
+                  }}
+                  onResetToBlank={handleReset}
+                />
               <div className="space-y-8">
                 {/* Course Type Specification */}
                 <div>
@@ -929,37 +1084,16 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   </div>
                 )}
               </div>
-            ) : (
-              /* Prompt when no subject has been selected yet from dialog box */
-              <div className="bg-white border-2 border-[#172554] p-8 sm:p-12 text-center max-w-2xl mx-auto my-8 shadow-xs">
-                <div className="w-16 h-16 bg-slate-50 border-2 border-[#172554] text-[#172554] flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="w-8 h-8" />
-                </div>
-                <h3 className="text-base sm:text-lg font-black uppercase tracking-wider text-[#172554] mb-2">
-                  Please Select Subject
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-700 mb-6 max-w-lg mx-auto leading-relaxed">
-                  Choose a course from the semester selector to calculate your Continuous Assessment and End Semester grades.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsDialogOpen(true)}
-                  className="px-6 py-3 bg-[#172554] text-white font-bold uppercase tracking-wider text-xs hover:bg-[#1e3a8a] transition-colors inline-flex items-center gap-2.5 cursor-pointer shadow-xs"
-                >
-                  <BookOpen className="w-4 h-4 text-amber-300" />
-                  <span>Select Course Now</span>
-                </button>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {activeTab === 'grades' && (
           <div className="space-y-6 sm:space-y-8 max-w-4xl mx-auto">
-            {/* Table 11: Grading of Courses */}
             <div className="bg-white border border-slate-300 p-4 sm:p-6 shadow-sm">
               <h2 className="text-lg font-black text-[#172554] mb-1 uppercase tracking-wide">
-                Table 11 – Grading of Courses
+                Grading of Courses
               </h2>
               <div className="overflow-x-auto border border-slate-200">
                 <table className="w-full text-left text-sm border-collapse">
@@ -1067,8 +1201,11 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
       <SubjectSelectionDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        onSelectSubject={handleSelectSubjectFromDialog}
-        currentSubjectName={currentSubject.name}
+        onSelectCourse={handleOpenPresetCourse}
+        currentSubjectName={dialogPurpose === 'course' && isEditorOpen ? currentSubject.name : ''}
+        initialSemester={selectedSemester}
+        initialGroup={dialogPurpose === 'elective' ? 'elective' : 'core'}
+        initialElectiveSlot={dialogElectiveSlot}
       />
     </div>
   );

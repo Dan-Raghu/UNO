@@ -43,6 +43,7 @@ export interface UserWorkspaceData {
     activeTab: 'calculator' | 'grades' | 'gpa';
     includeEstimates: boolean;
     estimatePercentage: number;
+    selectedSemester: number | null;
   };
 }
 
@@ -103,6 +104,11 @@ export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData>
       estimatePercentage: typeof preferencesSnapshot.data()?.estimatePercentage === 'number'
         ? Math.max(0, Math.min(100, preferencesSnapshot.data()!.estimatePercentage as number))
         : 80,
+      selectedSemester: Number.isInteger(preferencesSnapshot.data()?.selectedSemester) &&
+        Number(preferencesSnapshot.data()?.selectedSemester) >= 1 &&
+        Number(preferencesSnapshot.data()?.selectedSemester) <= 8
+        ? Number(preferencesSnapshot.data()?.selectedSemester)
+        : null,
     },
   };
 }
@@ -146,6 +152,7 @@ export async function saveUserPreferences(
     activeTab: string;
     includeEstimates: boolean;
     estimatePercentage: number;
+    selectedSemester: number | null;
   }
 ) {
   await setDoc(

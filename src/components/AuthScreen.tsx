@@ -9,6 +9,7 @@ import { auth } from '../firebase';
 
 interface AuthScreenProps {
   configurationError?: string;
+  onContinueAsGuest: () => void;
 }
 
 type AuthMode = 'login' | 'signup' | 'reset';
@@ -38,7 +39,7 @@ function friendlyAuthError(error: unknown): string {
   }
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onContinueAsGuest }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -151,17 +152,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError }) =>
             </form>
           )}
 
-          <div className="mt-5 flex flex-col items-start gap-2 text-sm">
-            {mode === 'login' && (
+          <div className={`${configurationError ? 'mt-6' : 'mt-5'} flex flex-col items-start gap-3 text-sm`}>
+            <button
+              type="button"
+              onClick={onContinueAsGuest}
+              className="w-full border border-[#172554] bg-white px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#172554] hover:bg-slate-50"
+            >
+              Continue as guest
+            </button>
+            <p className="text-xs text-slate-500">
+              Guest work is temporary and will be cleared when you reload or close this page.
+            </p>
+            {!configurationError && mode === 'login' && (
               <button type="button" onClick={() => selectMode('reset')} className="font-semibold text-[#1e3a8a] hover:underline">
                 Forgot password?
               </button>
             )}
-            {mode === 'reset' ? (
+            {!configurationError && mode === 'reset' ? (
               <button type="button" onClick={() => selectMode('login')} className="font-semibold text-[#1e3a8a] hover:underline">
                 Back to log in
               </button>
-            ) : (
+            ) : !configurationError ? (
               <p className="text-slate-600">
                 {mode === 'signup' ? 'Already have an account?' : 'New to Project UNO?'}{' '}
                 <button
@@ -172,7 +183,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError }) =>
                   {mode === 'signup' ? 'Log in' : 'Create account'}
                 </button>
               </p>
-            )}
+            ) : null}
           </div>
         </div>
       </section>

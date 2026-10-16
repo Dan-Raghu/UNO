@@ -4,6 +4,8 @@
 
 The app uses Firebase Authentication (email/password) and Cloud Firestore. Vite reads Firebase settings from `src/.env.local`; copy `src/.env.example` to that filename, then fill in the web-app configuration values from Firebase Console. Do not commit `.env.local` files. Restart the Vite server after changing environment values.
 
+Users can also continue as a guest without Firebase. Guest courses, marks, and GPA history are held only in app memory: they are not sent to a database or saved in browser storage, and are cleared when the page reloads or closes. Guest data is separate from account data and is not imported when signing in.
+
 In Firebase Console:
 
 1. Create or select the Firebase project and add a Web app.

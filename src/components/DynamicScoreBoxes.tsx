@@ -43,6 +43,13 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
     onScoresChange(newScores);
   };
 
+  const adjustBoxScore = (index: number, amount: number) => {
+    const currentScore = Number(scores[index]) || 0;
+    const nextScores = [...scores];
+    nextScores[index] = Math.max(0, Math.min(maxMarkPerBox, Math.round((currentScore + amount) * 2) / 2));
+    onScoresChange(nextScores);
+  };
+
   const handleCountInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     if (raw === '') {
@@ -159,6 +166,15 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                     </span>
 
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => adjustBoxScore(idx, -0.5)}
+                        disabled={estimatedMarks || Number(displayVal || 0) <= 0}
+                        aria-label={`Decrease ${category === 'assignment' ? 'assignment' : 'lab'} ${displayIndex} mark by 0.5`}
+                        className="flex h-7 w-7 items-center justify-center border border-slate-300 text-sm font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        −
+                      </button>
                       <input
                         type="number"
                         min={0}
@@ -171,6 +187,15 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                         aria-label={`${category === 'assignment' ? 'Assignment' : 'Lab Evaluation'} ${displayIndex} mark out of ${maxMarkPerBox}`}
                         className="w-12 py-0.5 px-1.5 text-xs font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] text-center read-only:bg-blue-50 read-only:text-[#1e3a8a]"
                       />
+                      <button
+                        type="button"
+                        onClick={() => adjustBoxScore(idx, 0.5)}
+                        disabled={estimatedMarks || Number(displayVal || 0) >= maxMarkPerBox}
+                        aria-label={`Increase ${category === 'assignment' ? 'assignment' : 'lab'} ${displayIndex} mark by 0.5`}
+                        className="flex h-7 w-7 items-center justify-center border border-slate-300 text-sm font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        +
+                      </button>
                       <span className="text-xs font-bold text-[#1e3a8a]">/{maxMarkPerBox}</span>
                     </div>
                   </div>
