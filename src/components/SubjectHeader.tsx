@@ -1,17 +1,15 @@
 import React from 'react';
 import { SubjectData } from '../types';
 import { getCourseType, getCourseWeights } from '../calculatorUtils';
-import { RotateCcw, BookOpen, ChevronRight } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 
 interface SubjectHeaderProps {
   subject: SubjectData;
-  onOpenDialog: () => void;
   onResetToBlank: () => void;
 }
 
 export const SubjectHeader: React.FC<SubjectHeaderProps> = ({
   subject,
-  onOpenDialog,
   onResetToBlank,
 }) => {
   const courseTypeLabel = getCourseWeights(getCourseType(subject)).courseTypeLabel;
@@ -41,31 +39,11 @@ export const SubjectHeader: React.FC<SubjectHeaderProps> = ({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={onOpenDialog}
-                className="text-xs px-3 py-2 border border-slate-300 bg-white hover:border-[#172554] hover:bg-slate-50 text-[#172554] font-bold uppercase tracking-wider transition-colors shrink-0 inline-flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                title="Change subject from dialog box"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Change Subject</span>
-              </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenDialog}
-              className="w-full px-3.5 py-3 text-left text-xs sm:text-sm font-bold text-[#172554] bg-slate-50 hover:bg-white border border-slate-300 hover:border-[#172554] transition-colors flex items-center justify-between cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4 text-[#172554] shrink-0" />
-                <span>Select a course or course type from the dialog box</span>
-              </div>
-              <span className="inline-flex items-center gap-1 text-xs font-extrabold uppercase tracking-wider text-[#172554] underline shrink-0">
-                <span>Open Dialog</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </button>
+            <div className="w-full border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs font-semibold text-slate-600">
+              Select a course from the tabs above.
+            </div>
           )}
         </div>
 

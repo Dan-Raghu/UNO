@@ -171,7 +171,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                         onClick={() => adjustBoxScore(idx, -0.5)}
                         disabled={estimatedMarks || Number(displayVal || 0) <= 0}
                         aria-label={`Decrease ${category === 'assignment' ? 'assignment' : 'lab'} ${displayIndex} mark by 0.5`}
-                        className="flex h-7 w-7 items-center justify-center border border-slate-300 text-sm font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-10 w-10 items-center justify-center border border-slate-300 text-base font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:h-7 sm:w-7 sm:text-sm"
                       >
                         −
                       </button>
@@ -192,7 +192,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                         onClick={() => adjustBoxScore(idx, 0.5)}
                         disabled={estimatedMarks || Number(displayVal || 0) >= maxMarkPerBox}
                         aria-label={`Increase ${category === 'assignment' ? 'assignment' : 'lab'} ${displayIndex} mark by 0.5`}
-                        className="flex h-7 w-7 items-center justify-center border border-slate-300 text-sm font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-10 w-10 items-center justify-center border border-slate-300 text-base font-black text-[#172554] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 sm:h-7 sm:w-7 sm:text-sm"
                       >
                         +
                       </button>
