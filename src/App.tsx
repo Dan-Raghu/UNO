@@ -561,7 +561,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
               <span className="font-semibold text-slate-600">Enter marks and calculate to view the final result</span>
             ) : (
               <span className="font-bold text-slate-600 uppercase tracking-wider">
-                Select a Semester I subject
+                Select a subject
               </span>
             )}
           </div>}
@@ -911,7 +911,7 @@ function AuthenticatedApp({ user, onSignOut, signOutPending, signOutError }: Aut
                   Please Select Subject
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-700 mb-6 max-w-lg mx-auto leading-relaxed">
-                  Choose one of your Semester I subjects (<span className="font-bold text-[#172554]">Foundation English</span>, <span className="font-bold text-[#172554]">Engineering Physics</span>, <span className="font-bold text-[#172554]">Programming in C</span>, <span className="font-bold text-[#172554]">Computational Thinking</span>, <span className="font-bold text-[#172554]">Heritage of Tamils</span>, <span className="font-bold text-[#172554]">Calculus</span>, or <span className="font-bold text-[#172554]">Fundamentals of Electrical and Electronics Engineering</span>) to calculate your Continuous Assessment and End Semester grades.
+                  Choose a course from the semester selector to calculate your Continuous Assessment and End Semester grades.
                 </p>
                 <button
                   type="button"

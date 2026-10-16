@@ -1,4 +1,16 @@
-export type CourseType = '2-0-2' | '3-0-2' | '2-0-4' | '1-0-2' | '3+2' | '2+4' | '1+2' | 'theory';
+export type CourseType =
+  | '2-0-2'
+  | '3-0-2'
+  | '2-0-4'
+  | '1-0-2'
+  | '1-0-4'
+  | '3-0-4'
+  | '3+2'
+  | '2+4'
+  | '1+2'
+  | '1+4'
+  | '3+4'
+  | 'theory';
 
 export interface SubjectData {
   id: string;

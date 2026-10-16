@@ -2,21 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import { CourseType } from '../types';
 
+export type SemesterNumber = 1 | 2 | 3 | 4;
+
 export interface PresetCourse {
   id: string;
   name: string;
   code: string;
   type: string;
   courseType: CourseType;
+  semester: SemesterNumber;
 }
 
 export const PRESET_COURSES: PresetCourse[] = [
+  // Semester I
   {
     id: 'EN23C03',
     name: 'Foundation English',
     code: 'EN23C03',
     type: '2-0-2',
     courseType: '2-0-2',
+    semester: 1,
   },
   {
     id: 'PH23C11',
@@ -24,6 +29,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'PH23C11',
     type: '3-0-2',
     courseType: '3-0-2',
+    semester: 1,
   },
   {
     id: 'CS23C04',
@@ -31,6 +37,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'CS23C04',
     type: '2-0-4',
     courseType: '2-0-4',
+    semester: 1,
   },
   {
     id: 'CS23101',
@@ -38,6 +45,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'CS23101',
     type: '1-0-2',
     courseType: '1-0-2',
+    semester: 1,
   },
   {
     id: 'HERITAGE_OF_TAMILS',
@@ -45,6 +53,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'UC23H01',
     type: 'Theory',
     courseType: 'theory',
+    semester: 1,
   },
   {
     id: 'CALCULUS',
@@ -52,6 +61,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'MA23C11',
     type: 'Theory',
     courseType: 'theory',
+    semester: 1,
   },
   {
     id: 'FEEE',
@@ -59,6 +69,165 @@ export const PRESET_COURSES: PresetCourse[] = [
     code: 'EE23C02',
     type: 'Theory',
     courseType: 'theory',
+    semester: 1,
+  },
+
+  // Semester II
+  {
+    id: 'EN23C04',
+    name: 'Professional Communication',
+    code: 'EN23C04',
+    type: '2-0-2',
+    courseType: '2-0-2',
+    semester: 2,
+  },
+  {
+    id: 'MA23C04',
+    name: 'Discrete Mathematics',
+    code: 'MA23C04',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 2,
+  },
+  {
+    id: 'CY23C10',
+    name: 'Engineering Chemistry',
+    code: 'CY23C10',
+    type: '3-0-2',
+    courseType: '3-0-2',
+    semester: 2,
+  },
+  {
+    id: 'ME23C01',
+    name: 'Engineering Drawing and 3D Modeling',
+    code: 'ME23C01',
+    type: '2-0-4',
+    courseType: '2-0-4',
+    semester: 2,
+  },
+  {
+    id: 'ME23C04',
+    name: 'Makespace',
+    code: 'ME23C04',
+    type: '1-0-4',
+    courseType: '1-0-4',
+    semester: 2,
+  },
+  {
+    id: 'UC23H02',
+    name: 'Tamils and Technology',
+    code: 'UC23H02',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 2,
+  },
+  {
+    id: 'CS23201',
+    name: 'Object Oriented Programming',
+    code: 'CS23201',
+    type: '2-0-2',
+    courseType: '2-0-2',
+    semester: 2,
+  },
+
+  // Semester III
+  {
+    id: 'MA23C05',
+    name: 'Probability and Statistics',
+    code: 'MA23C05',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 3,
+  },
+  {
+    id: 'CS23301',
+    name: 'Software Engineering',
+    code: 'CS23301',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 3,
+  },
+  {
+    id: 'CS23U01',
+    name: 'Standards - Computer Science & Engg.',
+    code: 'CS23U01',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 3,
+  },
+  {
+    id: 'UC23U01',
+    name: 'Universal Human Values',
+    code: 'UC23U01',
+    type: '1-0-2',
+    courseType: '1-0-2',
+    semester: 3,
+  },
+  {
+    id: 'CS23302',
+    name: 'Data Structures',
+    code: 'CS23302',
+    type: '3-0-4',
+    courseType: '3-0-4',
+    semester: 3,
+  },
+  {
+    id: 'CS23303',
+    name: 'Digital System Design',
+    code: 'CS23303',
+    type: '3-0-4',
+    courseType: '3-0-4',
+    semester: 3,
+  },
+  {
+    id: 'CS23304',
+    name: 'Java Programming',
+    code: 'CS23304',
+    type: '3-0-4',
+    courseType: '3-0-4',
+    semester: 3,
+  },
+
+  // Semester IV
+  {
+    id: 'MA23C03',
+    name: 'Linear Algebra and Numerical Methods',
+    code: 'MA23C03',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 4,
+  },
+  {
+    id: 'CS23402',
+    name: 'Computer Architecture',
+    code: 'CS23402',
+    type: '3-0-2',
+    courseType: '3-0-2',
+    semester: 4,
+  },
+  {
+    id: 'CS23403',
+    name: 'Full Stack Technologies',
+    code: 'CS23403',
+    type: '2-0-4',
+    courseType: '2-0-4',
+    semester: 4,
+  },
+  {
+    id: 'CS23404',
+    name: 'Design and Analysis of Algorithms',
+    code: 'CS23404',
+    type: 'Theory',
+    courseType: 'theory',
+    semester: 4,
+  },
+  {
+    id: 'CS23401',
+    name: 'Database Management Systems',
+    code: 'CS23401',
+    type: '3-0-4',
+    courseType: '3-0-4',
+    semester: 4,
   },
 ];
 
@@ -75,22 +244,34 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
   onSelectSubject,
   currentSubjectName,
 }) => {
+  const [selectedSemester, setSelectedSemester] = useState<SemesterNumber>(1);
   const [selectedCourse, setSelectedCourse] = useState<PresetCourse>(PRESET_COURSES[0]);
 
   useEffect(() => {
     if (isOpen) {
-      if (currentSubjectName) {
-        const found = PRESET_COURSES.find(
-          (c) => c.name.toLowerCase() === currentSubjectName.toLowerCase()
-        );
-        if (found) {
-          setSelectedCourse(found);
-          return;
-        }
+      const found = currentSubjectName
+        ? PRESET_COURSES.find((c) => c.name.toLowerCase() === currentSubjectName.toLowerCase())
+        : null;
+
+      if (found) {
+        setSelectedSemester(found.semester);
+        setSelectedCourse(found);
+        return;
       }
-      setSelectedCourse(PRESET_COURSES[0]);
+
+      const fallback = PRESET_COURSES.filter((course) => course.semester === selectedSemester)[0] ?? PRESET_COURSES[0];
+      setSelectedSemester(fallback.semester);
+      setSelectedCourse(fallback);
     }
-  }, [isOpen, currentSubjectName]);
+  }, [isOpen, currentSubjectName, selectedSemester]);
+
+  const filteredCourses = PRESET_COURSES.filter((course) => course.semester === selectedSemester);
+
+  const handleSemesterChange = (nextSemester: SemesterNumber) => {
+    setSelectedSemester(nextSemester);
+    const firstCourse = PRESET_COURSES.find((course) => course.semester === nextSemester) ?? PRESET_COURSES[0];
+    setSelectedCourse(firstCourse);
+  };
 
   if (!isOpen) return null;
 
@@ -124,48 +305,70 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
           )}
         </div>
 
-        {/* Dialog Body - Only Course Name, Type and Code */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-3">
-          {PRESET_COURSES.map((course) => {
-            const isSelected = selectedCourse.id === course.id;
-            return (
-              <button
-                key={course.id}
-                type="button"
-                onClick={() => setSelectedCourse(course)}
-                aria-pressed={isSelected}
-                className={`w-full text-left p-3.5 border cursor-pointer transition-colors flex items-center justify-between gap-3 ${
-                  isSelected
-                    ? 'border-[#172554] bg-blue-50'
-                    : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-sm sm:text-base font-black text-[#172554]">
-                    {course.name}
-                  </span>
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider bg-[#172554] text-white px-2 py-0.5">
-                    {course.type}
-                  </span>
-                  {course.code && (
-                    <span className="text-[11px] font-bold text-slate-700 bg-white border border-slate-300 px-1.5 py-0.5">
-                      {course.code}
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  className={`w-5 h-5 border flex items-center justify-center shrink-0 ${
+        {/* Dialog Body - Semester selector and course list */}
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3, 4].map((semester) => {
+              const isSelected = selectedSemester === semester;
+              return (
+                <button
+                  key={semester}
+                  type="button"
+                  onClick={() => handleSemesterChange(semester as SemesterNumber)}
+                  className={`px-3 py-2 text-xs font-black uppercase tracking-wider border cursor-pointer transition-colors ${
                     isSelected
-                      ? 'border-[#172554] bg-[#172554] text-white'
-                      : 'border-slate-400 bg-white'
+                      ? 'bg-[#172554] text-white border-[#172554]'
+                      : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
                   }`}
                 >
-                  {isSelected && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
-                </div>
-              </button>
-            );
-          })}
+                  Semester {semester}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="space-y-3">
+            {filteredCourses.map((course) => {
+              const isSelected = selectedCourse.id === course.id;
+              return (
+                <button
+                  key={course.id}
+                  type="button"
+                  onClick={() => setSelectedCourse(course)}
+                  aria-pressed={isSelected}
+                  className={`w-full text-left p-3.5 border cursor-pointer transition-colors flex items-center justify-between gap-3 ${
+                    isSelected
+                      ? 'border-[#172554] bg-blue-50'
+                      : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-sm sm:text-base font-black text-[#172554]">
+                      {course.name}
+                    </span>
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider bg-[#172554] text-white px-2 py-0.5">
+                      {course.type}
+                    </span>
+                    {course.code && (
+                      <span className="text-[11px] font-bold text-slate-700 bg-white border border-slate-300 px-1.5 py-0.5">
+                        {course.code}
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`w-5 h-5 border flex items-center justify-center shrink-0 ${
+                      isSelected
+                        ? 'border-[#172554] bg-[#172554] text-white'
+                        : 'border-slate-400 bg-white'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Dialog Footer */}

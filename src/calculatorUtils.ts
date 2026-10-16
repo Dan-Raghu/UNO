@@ -119,6 +119,11 @@ const COURSE_WEIGHTS: Record<CourseType, Omit<CourseWeights, 'courseType' | 'caM
   // Computational Thinking: LIT 1-0-2
   '1-0-2': { courseTypeLabel: '1-0-2 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 0, eseLabWeight: 50 },
   '1+2': { courseTypeLabel: '1-0-2 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 0, eseLabWeight: 50 },
+  // Later semester mixed courses using the same CA pattern as the existing 3-0-2 / 2-0-4 logic, with ESE split as 40 theory + 10 practical.
+  '3-0-4': { courseTypeLabel: '3-0-4 LIT', testWeight: 15, actWeight: 2.5, labWeight: 7.5, eseTheoryWeight: 40, eseLabWeight: 10 },
+  '3+4': { courseTypeLabel: '3-0-4 LIT', testWeight: 15, actWeight: 2.5, labWeight: 7.5, eseTheoryWeight: 40, eseLabWeight: 10 },
+  '1-0-4': { courseTypeLabel: '1-0-4 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 40, eseLabWeight: 10 },
+  '1+4': { courseTypeLabel: '1-0-4 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 40, eseLabWeight: 10 },
   // Theory-only courses (Heritage of Tamils, Calculus, Fundamentals of Electrical and Electronics Engineering):
   // 100 = ESE 60 + Internals 40; Internals = CA1 20 + CA2 20; each CA = Test 16 + Activities 4
   theory: { courseTypeLabel: 'Theory Only', testWeight: 16, actWeight: 4, labWeight: 0, eseTheoryWeight: 60, eseLabWeight: 0 },
