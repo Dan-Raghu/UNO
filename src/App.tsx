@@ -83,8 +83,9 @@ function hasEnteredSubjectMarks(subject: SubjectData): boolean {
 }
 
 function getCourseProgress(subject: SubjectData | undefined, calculatedSignatures: Record<string, string>): CourseProgress {
-  if (!subject || !hasEnteredSubjectMarks(subject)) return 'Not started';
-  return calculatedSignatures[subject.id] === JSON.stringify(subject) ? 'Calculated' : 'Marks entered';
+  if (!subject) return 'Not started';
+  if (calculatedSignatures[subject.id] === JSON.stringify(subject)) return 'Calculated';
+  return hasEnteredSubjectMarks(subject) ? 'Marks entered' : 'Not started';
 }
 
 interface AuthenticatedAppProps {
@@ -634,6 +635,23 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     .map((subject) => ({ subject, progress: getCourseProgress(subject, calculatedSignatures) })),
   [subjects, calculatedSignatures]);
 
+  const allSemesterCoursesCalculated = useMemo(() => {
+    if (selectedSemester === null || semesterCourseRows.length === 0) return false;
+    const projectOptions = semesterCourseRows.filter(({ course }) =>
+      ['project', 'project-work'].includes(course.courseType)
+    );
+    const requiredCourses = semesterCourseRows.filter(({ course }) =>
+      !['project', 'project-work'].includes(course.courseType)
+    );
+    const coreCoursesCalculated = requiredCourses.every((row) => row.progress === 'Calculated');
+    const projectRequirementMet = projectOptions.length === 0 ||
+      projectOptions.some((row) => row.progress === 'Calculated');
+    const electiveSlotsCalculated = semesterElectiveRows.every(
+      (row) => Boolean(row.course) && row.progress === 'Calculated'
+    );
+    return coreCoursesCalculated && projectRequirementMet && electiveSlotsCalculated;
+  }, [selectedSemester, semesterCourseRows, semesterElectiveRows]);
+
   const scrollToSummary = () => {
     const el = document.getElementById('summary-at-end');
     if (el) {
@@ -669,7 +687,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand wordmark */}
           <a href="#" className="shrink-0 text-base sm:text-lg font-black tracking-tight text-[#172554] flex items-center gap-2 transition-opacity hover:opacity-80">
             <span className="w-9 h-9 bg-[#172554] text-white flex items-center justify-center text-xs font-black shadow-sm">
@@ -795,6 +813,23 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             )}
           </div>
         </div>
+        <div className="grid grid-cols-3 border-t border-slate-200 bg-white md:hidden">
+          {([
+            ['calculator', 'Calc'],
+            ['grades', 'Grades'],
+            ['gpa', 'GPA'],
+          ] as const).map(([tab, label], index) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              aria-pressed={activeTab === tab}
+              className={`min-h-11 px-2 text-xs font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${index > 0 ? 'border-l border-slate-200' : ''} ${activeTab === tab ? 'bg-[#172554] text-white' : 'text-[#172554] hover:bg-slate-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </header>
 
       {/* Main Content Area */}
@@ -834,38 +869,6 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </section>
         )}
 
-        {/* Mobile Navigation Segmented Control */}
-        <div className="grid grid-cols-3 md:hidden mb-6 border border-slate-300 bg-white shadow-sm">
-          <button
-            type="button"
-            onClick={() => setActiveTab('calculator')}
-            aria-pressed={activeTab === 'calculator'}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${
-              activeTab === 'calculator' ? 'bg-[#172554] text-white' : 'text-[#172554]'
-            }`}
-          >
-            Calculator
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('grades')}
-            aria-pressed={activeTab === 'grades'}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-l border-slate-300 ${
-              activeTab === 'grades' ? 'bg-[#172554] text-white' : 'text-[#172554]'
-            }`}
-          >
-            Grading Scale
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('gpa')}
-            aria-pressed={activeTab === 'gpa'}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-l border-slate-300 ${activeTab === 'gpa' ? 'bg-[#172554] text-white' : 'text-[#172554]'}`}
-          >
-            GPA
-          </button>
-        </div>
-
         {activeTab === 'calculator' && selectedSemester === null && (
           <section className="mx-auto my-12 max-w-xl border border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
             <h1 className="text-xl font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
@@ -896,9 +899,11 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                 electiveSlots={semesterElectiveRows}
                 otherCourses={otherCourseRows}
                 selectedSubjectId={isEditorOpen ? currentSubjectId : ''}
+                allCoursesCalculated={allSemesterCoursesCalculated}
                 onSelectCourse={handleOpenPresetCourse}
                 onSelectElective={handleOpenElectivePicker}
                 onSelectOtherCourse={handleOpenOtherCourse}
+                onCalculateGpa={() => setActiveTab('gpa')}
               />
             </div>
 
@@ -906,11 +911,6 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
               <div className="min-w-0">
                 <SubjectHeader
                   subject={currentSubject}
-                  onOpenDialog={() => {
-                    setDialogPurpose('course');
-                    setDialogElectiveSlot(null);
-                    setIsDialogOpen(true);
-                  }}
                   onResetToBlank={handleReset}
                 />
               <div className="space-y-8">
@@ -1186,12 +1186,12 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         {activeTab === 'gpa' && (
           <GPACalculator
             subjects={subjects}
+            calculatedSignatures={calculatedSignatures}
             history={gpaHistory}
             onCalculate={handleCalculateGpa}
+            initialSemester={selectedSemester ?? 1}
             includeEstimates={includeEstimates}
             estimatePercentage={estimatePercentage}
-            onIncludeEstimatesChange={(enabled) => updateEstimateSettings(enabled)}
-            onEstimatePercentageChange={(percentage) => updateEstimateSettings(includeEstimates, percentage)}
           />
         )}
 </main>

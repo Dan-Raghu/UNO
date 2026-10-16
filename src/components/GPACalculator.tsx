@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle2, GraduationCap } from 'lucide-react';
 import type { SubjectData } from '../types';
 import type { GpaHistoryEntry } from '../firebaseData';
@@ -134,7 +134,8 @@ export function hasEstimateableComponents(subject: SubjectData): boolean {
 export function isGpaReady(
   subjects: SubjectData[],
   includeEstimates = false,
-  selectedSemester = 1
+  selectedSemester = 1,
+  calculatedSignatures: Record<string, string> = {}
 ): boolean {
   const semesterCourses = GPA_COURSES.filter((course) => course.semester === selectedSemester);
   const usedSemesters = new Set<number>();
@@ -157,35 +158,42 @@ export function isGpaReady(
 
   return semesterCourses.every((course) => {
     const subject = findCourseSubject(subjects, course);
-    return Boolean(subject && subjectMarksComplete(subject, includeEstimates));
+    return Boolean(subject && (
+      subjectMarksComplete(subject, includeEstimates) ||
+      calculatedSignatures[subject.id] === JSON.stringify(subject)
+    ));
   });
 }
 
 interface GPACalculatorProps {
   subjects: SubjectData[];
+  calculatedSignatures: Record<string, string>;
   history: GpaHistoryEntry[];
   onCalculate: (entry: GpaHistoryEntry) => Promise<void>;
+  initialSemester: number;
   includeEstimates: boolean;
   estimatePercentage: number;
-  onIncludeEstimatesChange: (include: boolean) => void;
-  onEstimatePercentageChange: (percentage: number) => void;
 }
 
 export const GPACalculator: React.FC<GPACalculatorProps> = ({
   subjects,
+  calculatedSignatures,
   history,
   onCalculate,
+  initialSemester,
   includeEstimates,
   estimatePercentage,
-  onIncludeEstimatesChange,
-  onEstimatePercentageChange,
 }) => {
   const [calculatedSubjects, setCalculatedSubjects] = useState<SubjectData[] | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<number>(1);
+  const [selectedSemester, setSelectedSemester] = useState<number>(initialSemester);
   const [isSaving, setIsSaving] = useState(false);
   const [calculationError, setCalculationError] = useState('');
+  useEffect(() => {
+    setSelectedSemester(initialSemester);
+  }, [initialSemester]);
+
   const semesterCourses = GPA_COURSES.filter((course) => course.semester === selectedSemester);
-  const gpaReady = isGpaReady(subjects, includeEstimates, selectedSemester);
+  const gpaReady = isGpaReady(subjects, includeEstimates, selectedSemester, calculatedSignatures);
   const hasCalculated = gpaReady && calculatedSubjects === subjects;
   const mixedSemesterCourses = new Set<number>();
 
@@ -198,7 +206,10 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
 
   const rows = semesterCourses.map((course) => {
     const subject = findCourseSubject(subjects, course);
-    const complete = Boolean(subject && subjectMarksComplete(subject, includeEstimates));
+    const complete = Boolean(subject && (
+      subjectMarksComplete(subject, includeEstimates) ||
+      calculatedSignatures[subject.id] === JSON.stringify(subject)
+    ));
     const usedEstimate = Boolean(includeEstimates && subject && hasEstimateableComponents(subject));
     const calculationSubject = subject && usedEstimate
       ? applyEstimatedScores(subject, estimatePercentage)
@@ -290,38 +301,6 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
             ))}
           </select>
         </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#172554] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeEstimates}
-                onChange={(event) => onIncludeEstimatesChange(event.target.checked)}
-                className="h-4 w-4 accent-[#172554]"
-              />
-              <span>Include estimated lab &amp; activity average</span>
-            </label>
-            {includeEstimates && (
-              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
-                <span>Estimate</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={estimatePercentage}
-                  aria-label="Estimated lab and activity percentage"
-                  onChange={(event) => {
-                    const normalizedInput = event.currentTarget.value.replace(/^0+(?=\d)/, '');
-                    event.currentTarget.value = normalizedInput;
-                    const value = Number(normalizedInput);
-                    onEstimatePercentageChange(Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0)));
-                  }}
-                  className="w-14 border border-slate-300 bg-white px-1.5 py-1 text-center text-xs font-bold text-[#172554] focus:border-[#172554]"
-                />
-                <span>%</span>
-              </label>
-            )}
-          </div>
           <p className="text-xs font-bold text-[#172554] mt-3" aria-live="polite">
             {completedCourses} of {totalSemesterCourses} courses complete
           </p>
