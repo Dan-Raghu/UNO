@@ -891,7 +891,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         )}
 
         {activeTab === 'calculator' && selectedSemester !== null && (
-          <div className={`grid min-w-0 items-start gap-6 ${isEditorOpen && hasSubjectSelected ? 'lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.8fr)]' : ''}`}>
+          <div className="min-w-0 space-y-6">
             <div className="min-w-0">
               <SemesterCourseDashboard
                 semester={selectedSemester}
