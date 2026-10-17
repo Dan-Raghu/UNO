@@ -1,8 +1,10 @@
 import React, { useState, type FormEvent } from 'react';
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPopup,
 } from 'firebase/auth';
 import { AlertCircle, BookOpen, LoaderCircle } from 'lucide-react';
 import { auth } from '../firebase';
@@ -14,7 +16,7 @@ interface AuthScreenProps {
 
 type AuthMode = 'login' | 'signup' | 'reset';
 
-function friendlyAuthError(error: unknown): string {
+function friendlyAuthError(error: unknown, provider: 'email' | 'google' = 'email'): string {
   const code = typeof error === 'object' && error !== null && 'code' in error
     ? String(error.code)
     : '';
@@ -29,7 +31,17 @@ function friendlyAuthError(error: unknown): string {
     case 'auth/weak-password':
       return 'Choose a password with at least 6 characters.';
     case 'auth/operation-not-allowed':
-      return 'Email/password sign-in is disabled. Enable it under Authentication → Sign-in method in Firebase Console.';
+      return provider === 'google'
+        ? 'Google sign-in is disabled. Enable Google under Authentication → Sign-in method in Firebase Console.'
+        : 'Email/password sign-in is disabled. Enable it under Authentication → Sign-in method in Firebase Console.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using a different sign-in method. Log in with that method first.';
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.';
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized for Firebase sign-in. Add it under Authentication → Settings → Authorized domains.';
+    case 'auth/operation-not-supported-in-this-environment':
+      return 'Google sign-in needs a supported browser window. Open the web app in your browser and try again.';
     case 'auth/too-many-requests':
       return 'Too many attempts. Wait a moment and try again.';
     case 'auth/network-request-failed':
@@ -64,6 +76,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onCo
       }
     } catch (authError) {
       setError(friendlyAuthError(authError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!auth || configurationError || busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    } catch (authError) {
+      const code = typeof authError === 'object' && authError !== null && 'code' in authError
+        ? String(authError.code)
+        : '';
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setError(friendlyAuthError(authError, 'google'));
+      }
     } finally {
       setBusy(false);
     }
@@ -150,6 +183,34 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onCo
                 {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Log in'}
               </button>
             </form>
+          )}
+
+          {!configurationError && mode !== 'reset' && (
+            <div className="mt-5">
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleGoogleSignIn()}
+                disabled={busy || !auth}
+                className="mt-4 w-full inline-flex items-center justify-center gap-3 border border-slate-300 bg-white px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#172554] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#172554] disabled:cursor-wait disabled:opacity-60"
+              >
+                {busy ? (
+                  <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.1 5.1 0 0 1-2.2 3.31v2.77h3.57c2.08-1.92 3.27-4.75 3.27-8.09Z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84A11 11 0 0 0 12 23Z" />
+                    <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.15a11 11 0 0 0 0 9.88l3.69-2.84Z" />
+                    <path fill="#EA4335" d="M12 5.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.54 10.54 0 0 0 12 1a11 11 0 0 0-9.85 6.06L5.84 9.9C6.71 7.29 9.14 5.36 12 5.36Z" />
+                  </svg>
+                )}
+                {busy ? 'Please wait…' : 'Continue with Google'}
+              </button>
+            </div>
           )}
 
           <div className={`${configurationError ? 'mt-6' : 'mt-5'} flex flex-col items-start gap-3 text-sm`}>
