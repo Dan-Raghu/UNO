@@ -2,27 +2,41 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, GraduationCap } from 'lucide-react';
 import type { SubjectData } from '../types';
 import type { GpaHistoryEntry } from '../firebaseData';
-import { GPA_COURSES } from '../gpaCourses';
+import { GPA_COURSES, type GpaCourse } from '../gpaCourses';
+import { PRESET_COURSES } from './SubjectSelectionDialog';
 import {
   calculateMarks,
   getCourseType,
   getCourseWeights,
 } from '../calculatorUtils';
 
-const findCourseSubject = (subjects: SubjectData[], course: (typeof GPA_COURSES)[number]) =>
-  subjects.find(
-    (subject) =>
-      (Boolean(course.code) && subject.code === course.code) ||
+const matchesPresetSubject = (subject: SubjectData, course: (typeof PRESET_COURSES)[number]) =>
+  (Boolean(course.code) && subject.code === course.code) ||
+  subject.name.trim().toLowerCase() === course.name.trim().toLowerCase();
+
+const findCourseSubject = (subjects: SubjectData[], course: GpaCourse) =>
+  subjects.find((subject) => {
+    if (course.electiveSlot) {
+      return PRESET_COURSES.some((preset) =>
+        preset.semester === course.semester &&
+        preset.electiveSlot === course.electiveSlot &&
+        matchesPresetSubject(subject, preset)
+      );
+    }
+    return (Boolean(course.code) && subject.code === course.code) ||
       (course.code === 'CS23801' && ['project', 'project-work'].includes(getCourseType(subject))) ||
-      subject.name.trim().toLowerCase() === course.name.toLowerCase()
-  );
+      subject.name.trim().toLowerCase() === course.name.toLowerCase();
+  });
 
 const getGpaCourseSemester = (subject: SubjectData): number | null => {
   const match = GPA_COURSES.find(
     (course) =>
       (Boolean(course.code) && subject.code === course.code) ||
       (course.code === 'CS23801' && ['project', 'project-work'].includes(getCourseType(subject))) ||
-      subject.name.trim().toLowerCase() === course.name.toLowerCase()
+      subject.name.trim().toLowerCase() === course.name.toLowerCase() ||
+      (Boolean(course.electiveSlot) && PRESET_COURSES.some((preset) =>
+        preset.semester === course.semester && preset.electiveSlot === course.electiveSlot && matchesPresetSubject(subject, preset)
+      ))
   );
   return match ? match.semester : null;
 };
@@ -43,10 +57,19 @@ function scoresComplete(countValue: number | string, scores: (number | string)[]
 function subjectMarksComplete(subject: SubjectData, allowEstimatedMarks = false): boolean {
   if (!subject.name?.trim()) return false;
 
-  const weights = getCourseWeights(getCourseType(subject));
+  const courseType = getCourseType(subject);
+  if (courseType === 'self-learning') return entered(subject.ese);
+  if (courseType === 'laboratory-course') {
+    return entered(subject.labCourseWorkMark) && entered(subject.labCourseMidtermMark) && entered(subject.labCourseExamMark);
+  }
+  if (courseType === 'universal-human-values') {
+    return entered(subject.test1) && Number(subject.act1No) >= 2 && scoresComplete(subject.act1No, subject.act1Scores);
+  }
+
+  const weights = getCourseWeights(courseType);
 
   if (weights.testWeight > 0 && (!entered(subject.test1) || !entered(subject.test2))) return false;
-  if (weights.courseType === 'project-work') {
+  if (weights.courseType === 'project-work' || weights.courseType === 'project') {
     const marks = subject.projectWorkMarks;
     if (!marks || Object.values(marks).some((value) => !entered(value))) return false;
     return true;
@@ -128,6 +151,7 @@ export function applyEstimatedScores(subject: SubjectData, estimatePercentage: n
 
 export function hasEstimateableComponents(subject: SubjectData): boolean {
     const weights = getCourseWeights(getCourseType(subject));
+  if (['project', 'project-work', 'self-learning', 'laboratory-course', 'universal-human-values'].includes(weights.courseType)) return false;
     return weights.actWeight > 0 || weights.labWeight > 0 || weights.eseLabWeight > 0;
 }
 

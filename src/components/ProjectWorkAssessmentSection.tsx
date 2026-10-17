@@ -6,6 +6,7 @@ type ProjectWorkSection = 'Continuous Assessment' | 'End-Semester Examination';
 interface ProjectWorkAssessmentSectionProps {
   marks: ProjectWorkMarks;
   onMarksChange: (marks: ProjectWorkMarks) => void;
+  assessmentTitle?: string;
 }
 
 const COMPONENTS: Array<{
@@ -23,7 +24,7 @@ const COMPONENTS: Array<{
   { key: 'vivaInternal', label: 'Viva-Voce — Internal Examiner', weight: 10, section: 'End-Semester Examination' },
 ];
 
-export const ProjectWorkAssessmentSection: React.FC<ProjectWorkAssessmentSectionProps> = ({ marks, onMarksChange }) => {
+export const ProjectWorkAssessmentSection: React.FC<ProjectWorkAssessmentSectionProps> = ({ marks, onMarksChange, assessmentTitle = 'Project Work assessment — Table 6' }) => {
   const renderGroup = (section: ProjectWorkSection) => {
     const components = COMPONENTS.filter((component) => component.section === section);
     const maxWeight = components.reduce((total, component) => total + component.weight, 0);
@@ -70,7 +71,7 @@ export const ProjectWorkAssessmentSection: React.FC<ProjectWorkAssessmentSection
   return (
     <div className="space-y-5">
       <div className="border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-[#172554]">
-        <p className="font-black">Project Work assessment — Table 6</p>
+        <p className="font-black">{assessmentTitle}</p>
         <p className="mt-1">Enter each component score out of 100. Each score is scaled by its listed weight; Reviews I–III total 60% and the thesis report and viva-voce components total 40%.</p>
       </div>
       {renderGroup('Continuous Assessment')}

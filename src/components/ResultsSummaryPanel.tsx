@@ -27,7 +27,32 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
   const hasLab = labWeight > 0;
   const isSelfDevelopment = breakdown.courseType === 'self-development';
   const isIndustryOrientedTests = breakdown.courseType === 'industry-oriented-tests';
+  const isStandardsCourse = breakdown.courseType === 'standards-course';
+  const isAuditCourse = breakdown.courseType === 'audit-course';
+  const isSelfLearningCourse = breakdown.courseType === 'self-learning';
+  const isUhvCourse = breakdown.courseType === 'universal-human-values';
+  const isLaboratoryCourse = breakdown.courseType === 'laboratory-course';
+  const isHeritageCourse = breakdown.courseType === 'heritage-course';
   const projectWorkComponents = breakdown.projectWorkComponents ?? [];
+  const hasProjectWorkComponents = Boolean(breakdown.projectWorkComponents);
+  const assessmentOneName = isIndustryOrientedTests
+    ? 'MID TERM TEST'
+    : isStandardsCourse
+      ? 'STANDARDS TEST I'
+      : isAuditCourse
+        ? 'AUDIT TEST I'
+          : isHeritageCourse
+            ? 'HERITAGE ASSESSMENT TEST I'
+        : 'CA TEST 1';
+  const assessmentTwoName = isIndustryOrientedTests
+    ? 'END COURSE TEST'
+    : isStandardsCourse
+      ? 'STANDARDS TEST II'
+      : isAuditCourse
+        ? 'AUDIT TEST II'
+        : isHeritageCourse
+          ? 'HERITAGE ASSESSMENT TEST II'
+        : 'CA TEST 2';
 
   const test1MaxNum = Number(subject.test1Max) || 50;
   const test2MaxNum = Number(subject.test2Max) || 50;
@@ -53,12 +78,57 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
     .reduce<number>((acc, v) => acc + (v === '' || isNaN(Number(v)) ? 0 : Number(v)), 0);
 
   const handleCopy = () => {
+    if (isUhvCourse) {
+      const text = [
+        'UNIVERSAL HUMAN VALUES — CONTINUOUS ASSESSMENT ONLY',
+        `Course: ${subject.name}`,
+        `Test: ${Number(subject.test1 || 0).toFixed(2)} / ${test1MaxNum} | Contribution ${breakdown.test1_p.toFixed(2)} / 70`,
+        `Assignments: ${act1Sum.toFixed(2)} / ${act1Count * 10} | Contribution ${breakdown.act1_p.toFixed(2)} / 30`,
+        `Total: ${breakdown.total.toFixed(2)} / 100`,
+        `Indicative outcome: ${breakdown.grade.letter}`,
+      ].join('\n');
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+    if (isLaboratoryCourse) {
+      const text = [
+        'LABORATORY COURSE — REGULATION 17.6',
+        `Course: ${subject.name}`,
+        `Work / observation / record: ${Number(subject.labCourseWorkMark || 0).toFixed(2)} / 100 | Contribution ${breakdown.lab1_p.toFixed(2)} / 45`,
+        `Midterm practical test: ${Number(subject.labCourseMidtermMark || 0).toFixed(2)} / 100 | Contribution ${breakdown.test1_p.toFixed(2)} / 15`,
+        `End-semester practical: ${Number(subject.labCourseExamMark || 0).toFixed(2)} / 100 | Contribution ${breakdown.ese_p.toFixed(2)} / 40`,
+        `Total: ${breakdown.total.toFixed(2)} / 100`,
+        `Indicative outcome: ${breakdown.grade.letter}`,
+      ].join('\n');
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+    if (isSelfLearningCourse) {
+      const passMark = Number(subject.selfLearningPassMark) === 40 ? 40 : 50;
+      navigator.clipboard.writeText([
+        'SELF-LEARNING COURSE — EXTERNAL RESULT',
+        `Course: ${subject.name || 'Self-Learning Course'}`,
+        `Provider mark: ${Number(subject.ese || 0).toFixed(2)} / 100`,
+        `Pass threshold: ${passMark}%`,
+        `Indicative outcome: ${breakdown.grade.letter}`,
+        'The provider’s official result and grade conversion remain authoritative.',
+      ].join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
     if (breakdown.projectWorkComponents) {
       const componentLines = projectWorkComponents.map((component) =>
         `- ${component.label}: ${component.score.toFixed(2)}/100 × ${component.weight}% = ${component.contribution.toFixed(2)}`
       );
       const projectText = [
-        'PROJECT WORK — TABLE 6',
+        breakdown.courseType === 'project'
+          ? 'INTERNSHIP CUM PROJECT WORK — REGULATION 17.7'
+          : 'PROJECT WORK — TABLE 6',
         `Course: ${subject.name || 'Project Work'}`,
         'CONTINUOUS ASSESSMENT (60%)',
         ...componentLines.slice(0, 3),
@@ -89,13 +159,13 @@ ESE Subtotal: ${breakdown.ese_p.toFixed(2)} / ${eseWeight.toFixed(2)}`
 ACADEMIC MARKS & GRADE SUMMARY
 Course: ${subject.name || 'Course'} - ${breakdown.courseTypeLabel}
 ============================================================
-${isIndustryOrientedTests ? 'MID TERM TEST' : 'CONTINUOUS ASSESSMENT 1'}
-- ${isIndustryOrientedTests ? 'MID TERM TEST' : 'CA Test 1'}: Scored ${subject.test1 || 0}/${test1MaxNum} | Contributed: ${breakdown.test1_p.toFixed(2)} / ${testWeight}
+${isIndustryOrientedTests || isStandardsCourse || isAuditCourse || isHeritageCourse ? assessmentOneName : 'CONTINUOUS ASSESSMENT 1'}
+- ${assessmentOneName}: Scored ${subject.test1 || 0}/${test1MaxNum} | Contributed: ${breakdown.test1_p.toFixed(2)} / ${testWeight}
 ${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act1Sum}/${act1Count * 10} | Contributed: ${breakdown.act1_p.toFixed(2)} / ${actWeight}\n` : ''}
 ${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab1Sum}/${lab1Count * 10} | Contributed: ${breakdown.lab1_p.toFixed(2)} / ${labWeight}\n` : ''}CA 1 Subtotal: ${breakdown.ca1_total.toFixed(2)} / ${caMax.toFixed(2)}
 
-${isIndustryOrientedTests ? 'END COURSE TEST' : 'CONTINUOUS ASSESSMENT 2'}
-- ${isIndustryOrientedTests ? 'END COURSE TEST' : 'CA Test 2'}: Scored ${subject.test2 || 0}/${test2MaxNum} | Contributed: ${breakdown.test2_p.toFixed(2)} / ${testWeight}
+${isIndustryOrientedTests || isStandardsCourse || isAuditCourse || isHeritageCourse ? assessmentTwoName : 'CONTINUOUS ASSESSMENT 2'}
+- ${assessmentTwoName}: Scored ${subject.test2 || 0}/${test2MaxNum} | Contributed: ${breakdown.test2_p.toFixed(2)} / ${testWeight}
 ${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act2Sum}/${act2Count * 10} | Contributed: ${breakdown.act2_p.toFixed(2)} / ${actWeight}\n` : ''}
 ${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab2Sum}/${lab2Count * 10} | Contributed: ${breakdown.lab2_p.toFixed(2)} / ${labWeight}\n` : ''}CA 2 Subtotal: ${breakdown.ca2_total.toFixed(2)} / ${caMax.toFixed(2)}
 
@@ -165,7 +235,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
         {/* Final Letter Grade */}
         <div className="p-2 sm:p-4 flex flex-col justify-center text-center sm:text-left">
           <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#1e3a8a] truncate mb-0.5">
-            Grade
+            Indicative grade
           </span>
           <div className="text-xl sm:text-4xl font-black text-[#172554]">
             {breakdown.grade.letter}
@@ -189,6 +259,17 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
         </div>
       </div>
 
+      {isSelfLearningCourse && (
+        <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          SLC grade is an app estimate from the entered mark and selected pass threshold. Use the approved provider’s official result and conversion.
+        </p>
+      )}
+      {breakdown.courseType !== 'self-learning' && (
+        <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          Indicative grade only: Regulation 20.2 specifies customized grading based on course averages and relative performance, finalized by the Academic Monitoring Committee.
+        </p>
+      )}
+
       {/* Mobile scroll hint */}
       <div className="flex sm:hidden items-center justify-between text-[11px] font-bold text-[#1e3a8a] mb-1.5 px-0.5">
         <span>Detailed Distribution:</span>
@@ -197,12 +278,51 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
         </span>
       </div>
 
-      {projectWorkComponents ? (
+      {isUhvCourse ? (
+      <div className="overflow-x-auto border border-slate-200 bg-white">
+        <table className="w-full min-w-[440px] border-collapse text-left text-sm">
+          <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide"><tr><th className="px-4 py-3">Continuous assessment component</th><th className="px-4 py-3 text-center">Weight</th><th className="px-4 py-3 text-right">Raw marks</th><th className="px-4 py-3 text-right">Contribution</th></tr></thead>
+          <tbody className="divide-y divide-slate-200">
+            <tr><td className="px-4 py-3 font-semibold">One test</td><td className="px-4 py-3 text-center">70%</td><td className="px-4 py-3 text-right">{Number(subject.test1 || 0).toFixed(2)} / {test1MaxNum}</td><td className="px-4 py-3 text-right font-bold">{breakdown.test1_p.toFixed(2)} / 70</td></tr>
+            <tr><td className="px-4 py-3 font-semibold">Assignments ({act1Count})</td><td className="px-4 py-3 text-center">30%</td><td className="px-4 py-3 text-right">{act1Sum.toFixed(2)} / {act1Count * 10}</td><td className="px-4 py-3 text-right font-bold">{breakdown.act1_p.toFixed(2)} / 30</td></tr>
+            <tr className="bg-[#172554] text-white font-black"><td className="px-4 py-3">Total</td><td className="px-4 py-3 text-center">100%</td><td className="px-4 py-3 text-right">—</td><td className="px-4 py-3 text-right">{breakdown.total.toFixed(2)} / 100</td></tr>
+          </tbody>
+        </table>
+      </div>
+      ) : isLaboratoryCourse ? (
+      <div className="overflow-x-auto border border-slate-200 bg-white">
+        <table className="w-full min-w-[500px] border-collapse text-left text-sm">
+          <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide"><tr><th className="px-4 py-3">Assessment component</th><th className="px-4 py-3 text-center">Weight</th><th className="px-4 py-3 text-right">Raw marks</th><th className="px-4 py-3 text-right">Contribution</th></tr></thead>
+          <tbody className="divide-y divide-slate-200">
+            <tr><td className="px-4 py-3 font-semibold">Work, observation and record</td><td className="px-4 py-3 text-center">45%</td><td className="px-4 py-3 text-right">{Number(subject.labCourseWorkMark || 0).toFixed(2)} / 100</td><td className="px-4 py-3 text-right font-bold">{breakdown.lab1_p.toFixed(2)} / 45</td></tr>
+            <tr><td className="px-4 py-3 font-semibold">Midterm practical test</td><td className="px-4 py-3 text-center">15%</td><td className="px-4 py-3 text-right">{Number(subject.labCourseMidtermMark || 0).toFixed(2)} / 100</td><td className="px-4 py-3 text-right font-bold">{breakdown.test1_p.toFixed(2)} / 15</td></tr>
+            <tr><td className="px-4 py-3 font-semibold">End-semester practical</td><td className="px-4 py-3 text-center">40%</td><td className="px-4 py-3 text-right">{Number(subject.labCourseExamMark || 0).toFixed(2)} / 100</td><td className="px-4 py-3 text-right font-bold">{breakdown.ese_p.toFixed(2)} / 40</td></tr>
+            <tr className="bg-[#172554] text-white font-black"><td className="px-4 py-3">Total</td><td className="px-4 py-3 text-center">100%</td><td className="px-4 py-3 text-right">—</td><td className="px-4 py-3 text-right">{breakdown.total.toFixed(2)} / 100</td></tr>
+          </tbody>
+        </table>
+      </div>
+      ) : isSelfLearningCourse ? (
+      <div className="overflow-x-auto border border-slate-200 bg-white">
+        <table className="w-full min-w-[440px] border-collapse text-left text-sm">
+          <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide">
+            <tr><th className="px-4 py-3">Provider result</th><th className="px-4 py-3 text-center">Pass mark</th><th className="px-4 py-3 text-right">Entered score</th><th className="px-4 py-3 text-right">Indicative grade</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="px-4 py-3 font-semibold">{subject.name || 'Self-Learning Course'}</td>
+              <td className="px-4 py-3 text-center">{Number(subject.selfLearningPassMark) === 40 ? 40 : 50}%</td>
+              <td className="px-4 py-3 text-right font-bold tabular-nums">{Number(subject.ese || 0).toFixed(2)} / 100</td>
+              <td className="px-4 py-3 text-right font-black">{breakdown.grade.letter}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      ) : hasProjectWorkComponents ? (
       <div className="border border-slate-200 bg-white overflow-x-auto">
         <table className="min-w-[560px] w-full text-left border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="bg-[#172554] text-white text-[11px] sm:text-xs uppercase tracking-wider font-extrabold">
-              <th className="py-2.5 px-3 sm:px-4">Table 6 component</th>
+              <th className="py-2.5 px-3 sm:px-4">{breakdown.courseType === 'project' ? 'Internship cum Project Work component' : 'Table 6 component'}</th>
               <th className="py-2.5 px-2 text-center">Weight</th>
               <th className="py-2.5 px-3 text-right">Score / 100</th>
               <th className="py-2.5 px-3 sm:px-4 text-right">Contributed</th>
@@ -255,7 +375,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* --- CA 1 Header --- */}
             <tr className="bg-slate-100 font-extrabold border-t-2 border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 uppercase text-[11px] sm:text-xs tracking-wider text-[#172554]">
-                {isIndustryOrientedTests ? 'Mid Term Test' : 'Continuous Assessment 1'}
+                {isIndustryOrientedTests ? 'Mid Term Test' : isStandardsCourse ? 'Standards Test I' : isAuditCourse ? 'Audit Test I' : isHeritageCourse ? 'Heritage Assessment Test I' : 'Continuous Assessment 1'}
               </td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] text-[11px]">Max {caMax}M</td>
               <td className="py-2 px-3 sm:px-4 text-right text-[11px] sm:text-xs uppercase tracking-wider font-black text-[#172554]">
@@ -266,7 +386,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Test 1 */}
             <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                {isIndustryOrientedTests ? 'MID TERM TEST' : 'CA Test 1'}
+                {assessmentOneName}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{testWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -313,7 +433,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 1 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                {isIndustryOrientedTests ? 'Mid Term Test Total' : 'CA 1 Subtotal'}
+                {isIndustryOrientedTests ? 'Mid Term Test Total' : isStandardsCourse ? 'Standards Test I Total' : isAuditCourse ? 'Audit Test I Total' : isHeritageCourse ? 'Heritage Test I Total' : 'CA 1 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">
@@ -325,7 +445,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* --- CA 2 Header --- */}
             <tr className="bg-slate-100 font-extrabold border-t-2 border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 uppercase text-[11px] sm:text-xs tracking-wider text-[#172554]">
-                {isIndustryOrientedTests ? 'End Course Test' : 'Continuous Assessment 2'}
+                {isIndustryOrientedTests ? 'End Course Test' : isStandardsCourse ? 'Standards Test II' : isAuditCourse ? 'Audit Test II' : isHeritageCourse ? 'Heritage Assessment Test II' : 'Continuous Assessment 2'}
               </td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] text-[11px]">Max {caMax}M</td>
               <td className="py-2 px-3 sm:px-4 text-right text-[11px] sm:text-xs uppercase tracking-wider font-black text-[#172554]">
@@ -336,7 +456,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Test 2 */}
             <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                {isIndustryOrientedTests ? 'END COURSE TEST' : 'CA Test 2'}
+                {assessmentTwoName}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{testWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -383,7 +503,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 2 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                {isIndustryOrientedTests ? 'End Course Test Total' : 'CA 2 Subtotal'}
+                {isIndustryOrientedTests ? 'End Course Test Total' : isStandardsCourse ? 'Standards Test II Total' : isAuditCourse ? 'Audit Test II Total' : isHeritageCourse ? 'Heritage Test II Total' : 'CA 2 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">

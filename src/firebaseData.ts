@@ -10,6 +10,7 @@ import {
 import type { SubjectData } from './types';
 import { db } from './firebase';
 import { GPA_COURSES } from './gpaCourses';
+import { PRESET_COURSES } from './components/SubjectSelectionDialog';
 
 export interface GpaHistoryEntry {
   id: string;
@@ -256,7 +257,13 @@ export async function skipLegacyMigration(uid: string) {
 
 function subjectCredits(subject: SubjectData): number {
   const course = GPA_COURSES.find(
-    (item) => item.code === subject.code || item.name.toLowerCase() === subject.name.trim().toLowerCase()
+    (item) => (Boolean(item.code) && item.code === subject.code) || item.name.toLowerCase() === subject.name.trim().toLowerCase()
   );
+  if (course?.electiveSlot) return course.credits;
+  const electivePreset = PRESET_COURSES.find((preset) =>
+    preset.group === 'elective' &&
+    ((Boolean(preset.code) && preset.code === subject.code) || preset.name.trim().toLowerCase() === subject.name.trim().toLowerCase())
+  );
+  if (electivePreset) return 3;
   return course?.credits ?? 0;
 }

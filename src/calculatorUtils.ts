@@ -122,8 +122,8 @@ const COURSE_WEIGHTS: Record<CourseType, Omit<CourseWeights, 'courseType' | 'caM
   // Later semester mixed courses using the same CA pattern as the existing 3-0-2 / 2-0-4 logic, with ESE split as 40 theory + 10 practical.
   '3-0-4': { courseTypeLabel: '3-0-4 LIT', testWeight: 15, actWeight: 2.5, labWeight: 7.5, eseTheoryWeight: 40, eseLabWeight: 10 },
   '3+4': { courseTypeLabel: '3-0-4 LIT', testWeight: 15, actWeight: 2.5, labWeight: 7.5, eseTheoryWeight: 40, eseLabWeight: 10 },
-  '1-0-4': { courseTypeLabel: '1-0-4 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 40, eseLabWeight: 10 },
-  '1+4': { courseTypeLabel: '1-0-4 LIT', testWeight: 10, actWeight: 2.5, labWeight: 12.5, eseTheoryWeight: 40, eseLabWeight: 10 },
+  '1-0-4': { courseTypeLabel: '1-0-4 LIT', testWeight: 5, actWeight: 2.5, labWeight: 17.5, eseTheoryWeight: 0, eseLabWeight: 50 },
+  '1+4': { courseTypeLabel: '1-0-4 LIT', testWeight: 5, actWeight: 2.5, labWeight: 17.5, eseTheoryWeight: 0, eseLabWeight: 50 },
   // Theory-only courses (Heritage of Tamils, Calculus, Fundamentals of Electrical and Electronics Engineering):
   // 100 = ESE 60 + Internals 40; Internals = CA1 20 + CA2 20; each CA = Test 16 + Activities 4
   theory: { courseTypeLabel: 'Theory Only', testWeight: 16, actWeight: 4, labWeight: 0, eseTheoryWeight: 60, eseLabWeight: 0 },
@@ -136,8 +136,14 @@ const COURSE_WEIGHTS: Record<CourseType, Omit<CourseWeights, 'courseType' | 'caM
   // SDC flowchart: two CAs of 30 each (Test 5 + Activity 2.5 + Lab 22.5),
   // plus ESE Theory 15 and ESE Practical 25, for a total of 100.
   'self-development': { courseTypeLabel: 'Self Development Course — 60% CA, 40% ESE', testWeight: 5, actWeight: 2.5, labWeight: 22.5, eseTheoryWeight: 15, eseLabWeight: 25 },
-  // Semester 4 Industry Oriented Course I: Mid Term Test 50% + End Course Test 50%.
+  // Industry Oriented Courses: two equally weighted tests; no ESE.
   'industry-oriented-tests': { courseTypeLabel: 'Industry Oriented Course — Two Tests, 50% Each', testWeight: 50, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
+  'universal-human-values': { courseTypeLabel: 'Universal Human Values — Test 70%, Assignments 30%', testWeight: 70, actWeight: 30, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
+  'standards-course': { courseTypeLabel: 'Standards — Two Equal Tests, No ESE', testWeight: 50, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
+  'audit-course': { courseTypeLabel: 'Audit Course — Two Equal Tests, No ESE', testWeight: 50, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
+  'self-learning': { courseTypeLabel: 'Self-Learning Course — External Result', testWeight: 0, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
+  'laboratory-course': { courseTypeLabel: 'Laboratory Course — 60% CA, 40% ESE', testWeight: 15, actWeight: 0, labWeight: 45, eseTheoryWeight: 0, eseLabWeight: 40 },
+  'heritage-course': { courseTypeLabel: 'Heritage Course — Two Tests 40%, ESE 60%', testWeight: 20, actWeight: 0, labWeight: 0, eseTheoryWeight: 60, eseLabWeight: 0 },
 };
 
 export function isCourseType(value: unknown): value is CourseType {
@@ -145,16 +151,23 @@ export function isCourseType(value: unknown): value is CourseType {
 }
 
 export function getCourseType(data: SubjectData): CourseType {
-  if (data.name.trim().toLowerCase() === 'industry oriented course i') {
+  const normalizedName = data.name.trim().toLowerCase().replace(/[–—-]/g, ' ').replace(/\s+/g, ' ');
+  if (normalizedName === 'industry oriented course i' || normalizedName === 'industry oriented course ii') {
     return 'industry-oriented-tests';
   }
+  if (normalizedName === 'industry oriented course iii') return 'industry-oriented-tests';
+  if (normalizedName === 'universal human values') return 'universal-human-values';
+  if (normalizedName === 'standards computer science & engg.') return 'standards-course';
+  if (normalizedName === 'self learning course') return 'self-learning';
+  if (normalizedName === 'audit course i' || normalizedName === 'audit course ii') return 'audit-course';
+  if (normalizedName === 'heritage of tamils' || normalizedName === 'tamils and technology') return 'heritage-course';
   if (isCourseType(data.courseType)) return data.courseType;
   return '2-0-2'; // fallback
 }
 
 export function getCourseWeights(courseType: CourseType): CourseWeights {
   const w = COURSE_WEIGHTS[courseType] ?? COURSE_WEIGHTS['2-0-2'];
-  if (courseType === 'project-work') {
+  if (courseType === 'project-work' || courseType === 'project') {
     return {
       courseType,
       courseTypeLabel: w.courseTypeLabel,
@@ -166,6 +179,36 @@ export function getCourseWeights(courseType: CourseType): CourseWeights {
       eseWeight: 40,
       eseTheoryWeight: 0,
       eseLabWeight: 0,
+      totalMax: 100,
+    };
+  }
+  if (courseType === 'universal-human-values') {
+    return {
+      courseType,
+      courseTypeLabel: w.courseTypeLabel,
+      testWeight: w.testWeight,
+      actWeight: w.actWeight,
+      labWeight: 0,
+      caMax: 100,
+      internalMax: 100,
+      eseWeight: 0,
+      eseTheoryWeight: 0,
+      eseLabWeight: 0,
+      totalMax: 100,
+    };
+  }
+  if (courseType === 'laboratory-course') {
+    return {
+      courseType,
+      courseTypeLabel: w.courseTypeLabel,
+      testWeight: 15,
+      actWeight: 0,
+      labWeight: 45,
+      caMax: 60,
+      internalMax: 60,
+      eseWeight: 40,
+      eseTheoryWeight: 0,
+      eseLabWeight: 40,
       totalMax: 100,
     };
   }
@@ -229,7 +272,7 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
   const courseType = getCourseType(data);
   const weights = getCourseWeights(courseType);
 
-  if (courseType === 'project-work') {
+  if (courseType === 'project-work' || courseType === 'project') {
     const score = (value: number | string | undefined): number => {
       const parsed = parseNum(value);
       return Math.max(0, Math.min(100, parsed));
@@ -257,6 +300,7 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
       .filter((component) => component.section === 'End-Semester Examination')
       .reduce((sum, component) => sum + component.contribution, 0);
     const total = round2(internalTotal + eseTotal);
+    const reviewsAndVivaComplete = componentDefinitions.every((component) => marks[component.key] !== '' && marks[component.key] !== null && marks[component.key] !== undefined);
 
     return {
       courseType,
@@ -286,8 +330,141 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
       ca2_total: round2(components[1].contribution + components[2].contribution),
       internal_total: round2(internalTotal),
       total,
-      grade: getGradeForScore(total),
+      grade: getGradeForScore(reviewsAndVivaComplete && total >= 50 && eseTotal / 40 * 100 >= 45 ? total : 49),
       projectWorkComponents: components,
+    };
+  }
+
+  if (courseType === 'universal-human-values') {
+    const testMax = Math.max(1, parseNum(data.test1Max) || 50);
+    const test = Math.max(0, Math.min(testMax, parseNum(data.test1)));
+    const activityCount = Math.max(0, Math.floor(parseNum(data.act1No)));
+    const activityScores = syncScoresArray(data.act1Scores, activityCount);
+    const activitySum = activityScores.reduce<number>((sum, value) => sum + Math.max(0, Math.min(10, parseNum(value))), 0);
+    const testPoints = test / testMax * 70;
+    const activityPoints = activityCount > 0 ? activitySum / (activityCount * 10) * 30 : 0;
+    const total = round2(testPoints + activityPoints);
+    const requiredActivitiesComplete = activityCount >= 2 && activityScores.slice(0, 2).every((value) => value !== '' && value !== null && value !== undefined);
+    return {
+      courseType,
+      courseTypeLabel: weights.courseTypeLabel,
+      testWeight: 70,
+      actWeight: 30,
+      labWeight: 0,
+      caMax: 100,
+      internalMax: 100,
+      eseWeight: 0,
+      eseTheoryWeight: 0,
+      eseLabWeight: 0,
+      ese_p: 0,
+      ese_theory_p: 0,
+      ese_lab_p: 0,
+      test1_p: round2(testPoints),
+      test2_p: 0,
+      act1_sum: round2(activitySum),
+      act1_p: round2(activityPoints),
+      act2_sum: 0,
+      act2_p: 0,
+      lab1_sum: 0,
+      lab1_p: 0,
+      lab2_sum: 0,
+      lab2_p: 0,
+      ca1_total: total,
+      ca2_total: 0,
+      internal_total: total,
+      total,
+      grade: getGradeForScore(data.test1 !== '' && data.test1 !== null && data.test1 !== undefined && requiredActivitiesComplete && total >= 50 ? total : 49),
+    };
+  }
+
+  if (courseType === 'laboratory-course') {
+    const workMark = Math.max(0, Math.min(100, parseNum(data.labCourseWorkMark)));
+    const midtermMark = Math.max(0, Math.min(100, parseNum(data.labCourseMidtermMark)));
+    const examMark = Math.max(0, Math.min(100, parseNum(data.labCourseExamMark)));
+    const workPoints = round2(workMark * 0.45);
+    const midtermPoints = round2(midtermMark * 0.15);
+    const examPoints = round2(examMark * 0.40);
+    const internalTotal = round2(workPoints + midtermPoints);
+    const total = round2(internalTotal + examPoints);
+    return {
+      courseType,
+      courseTypeLabel: weights.courseTypeLabel,
+      testWeight: 15,
+      actWeight: 0,
+      labWeight: 45,
+      caMax: 60,
+      internalMax: 60,
+      eseWeight: 40,
+      eseTheoryWeight: 0,
+      eseLabWeight: 40,
+      ese_p: examPoints,
+      ese_theory_p: 0,
+      ese_lab_p: examPoints,
+      test1_p: midtermPoints,
+      test2_p: 0,
+      act1_sum: 0,
+      act1_p: 0,
+      act2_sum: 0,
+      act2_p: 0,
+      lab1_sum: workMark,
+      lab1_p: workPoints,
+      lab2_sum: 0,
+      lab2_p: 0,
+      ca1_total: internalTotal,
+      ca2_total: 0,
+      internal_total: internalTotal,
+      total,
+      grade: getGradeForScore(data.labCourseWorkMark !== '' && data.labCourseWorkMark !== undefined && data.labCourseWorkMark !== null && data.labCourseMidtermMark !== '' && data.labCourseMidtermMark !== undefined && data.labCourseMidtermMark !== null && data.labCourseExamMark !== '' && data.labCourseExamMark !== undefined && data.labCourseExamMark !== null && total >= 50 && examMark >= 45 ? total : 49),
+    };
+  }
+
+  if (courseType === 'self-learning') {
+    const mark = Math.max(0, Math.min(100, parseNum(data.ese)));
+    const passMark = Number(data.selfLearningPassMark) === 40 ? 40 : 50;
+    const slcGrade = mark >= 90
+      ? { ...GRADE_SCALE[0], minScore: 90, maxScore: 100, rangeLabel: '90 – 100' }
+      : mark >= 80
+        ? { ...GRADE_SCALE[1], minScore: 80, maxScore: 89, rangeLabel: '80 – 89' }
+        : mark >= 70
+          ? { ...GRADE_SCALE[2], minScore: 70, maxScore: 79, rangeLabel: '70 – 79' }
+          : mark >= 60
+            ? { ...GRADE_SCALE[3], minScore: 60, maxScore: 69, rangeLabel: '60 – 69' }
+            : mark >= 50
+              ? { ...GRADE_SCALE[4], minScore: 50, maxScore: 59, rangeLabel: '50 – 59' }
+              : mark >= 40
+                ? { ...GRADE_SCALE[5], minScore: 40, maxScore: 49, rangeLabel: '40 – 49' }
+                : { ...GRADE_SCALE[GRADE_SCALE.length - 1], minScore: 0, maxScore: 39, rangeLabel: '< 40' };
+    return {
+      courseType,
+      courseTypeLabel: weights.courseTypeLabel,
+      testWeight: 0,
+      actWeight: 0,
+      labWeight: 0,
+      caMax: 0,
+      internalMax: 0,
+      eseWeight: 0,
+      eseTheoryWeight: 0,
+      eseLabWeight: 0,
+      ese_p: 0,
+      ese_theory_p: 0,
+      ese_lab_p: 0,
+      test1_p: 0,
+      test2_p: 0,
+      act1_sum: 0,
+      act1_p: 0,
+      act2_sum: 0,
+      act2_p: 0,
+      lab1_sum: 0,
+      lab1_p: 0,
+      lab2_sum: 0,
+      lab2_p: 0,
+      ca1_total: 0,
+      ca2_total: 0,
+      internal_total: 0,
+      total: mark,
+      grade: mark >= passMark
+        ? slcGrade
+        : { ...GRADE_SCALE[GRADE_SCALE.length - 1], minScore: 0, maxScore: passMark - 0.01, rangeLabel: `< ${passMark}` },
     };
   }
 
@@ -346,7 +523,20 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
 
   // Total
   const total = ese_p + internal_total; // max 100
-  const grade = getGradeForScore(total);
+  const eseExamPercentage = weights.eseWeight > 0 ? ese_p / weights.eseWeight * 100 : 100;
+  const allScoresEntered = (values: Array<number | string | undefined>): boolean =>
+    values.every((value) => value !== '' && value !== null && value !== undefined);
+  const scoresEntered =
+    (weights.testWeight === 0 || allScoresEntered([data.test1, data.test2])) &&
+    (weights.actWeight === 0 || (Number(data.act1No) >= 1 && Number(data.act2No) >= 1 &&
+      allScoresEntered(syncScoresArray(data.act1Scores, data.act1No)) &&
+      allScoresEntered(syncScoresArray(data.act2Scores, data.act2No)))) &&
+    (weights.labWeight === 0 || (Number(data.lab1No) >= 1 && Number(data.lab2No) >= 1 &&
+      allScoresEntered(syncScoresArray(data.lab1Scores, data.lab1No)) &&
+      allScoresEntered(syncScoresArray(data.lab2Scores, data.lab2No)))) &&
+    (weights.eseTheoryWeight === 0 || allScoresEntered([data.ese])) &&
+    (weights.eseLabWeight === 0 || allScoresEntered([data.eseLab]));
+  const grade = getGradeForScore(scoresEntered && total >= 50 && eseExamPercentage >= 45 ? total : 49);
 
   return {
     courseType: weights.courseType,

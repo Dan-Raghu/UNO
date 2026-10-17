@@ -14,6 +14,7 @@ interface DynamicScoreBoxesProps {
   calculatedPoints: number;
   caName: string;
   estimatedMarks?: boolean;
+  minimumCount?: number;
 }
 
 export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
@@ -29,6 +30,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
   calculatedPoints,
   caName,
   estimatedMarks = false,
+  minimumCount = 0,
 }) => {
   const numericCount = Math.max(0, parseInt(String(count), 10) || 0);
 
@@ -57,18 +59,18 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
       return;
     }
     const val = parseInt(raw, 10);
-    const safeVal = isNaN(val) ? 0 : Math.max(0, Math.min(20, val));
+    const safeVal = isNaN(val) ? minimumCount : Math.max(minimumCount, Math.min(20, val));
     onCountChange(safeVal);
   };
 
   const incrementCount = () => {
     if (numericCount < 20) {
-      onCountChange(numericCount + 1);
+      onCountChange(numericCount < minimumCount ? minimumCount : numericCount + 1);
     }
   };
 
   const decrementCount = () => {
-    if (numericCount > 0) {
+    if (numericCount > minimumCount) {
       onCountChange(numericCount - 1);
     }
   };
@@ -120,7 +122,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
               <input
                 id={`count-${category}-${caName}`}
                 type="number"
-                min={0}
+                min={minimumCount}
                 max={20}
                 value={count === '' || count === undefined ? '' : count}
                 placeholder="0"

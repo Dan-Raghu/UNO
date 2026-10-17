@@ -14,7 +14,13 @@ export type CourseType =
   | 'project'
   | 'project-work'
   | 'self-development'
-  | 'industry-oriented-tests';
+  | 'industry-oriented-tests'
+  | 'universal-human-values'
+  | 'standards-course'
+  | 'audit-course'
+  | 'self-learning'
+  | 'laboratory-course'
+  | 'heritage-course';
 
 export interface SubjectData {
   id: string;
@@ -22,6 +28,10 @@ export interface SubjectData {
   code: string;
   courseType?: CourseType;
   projectWorkMarks?: ProjectWorkMarks;
+  selfLearningPassMark?: number | string;
+  labCourseWorkMark?: number | string;
+  labCourseMidtermMark?: number | string;
+  labCourseExamMark?: number | string;
   
   // End Semester
   ese: number | string; // out of 100 (ESE Theory)
