@@ -15,6 +15,9 @@ interface ContinuousAssessmentSectionProps {
   isSelfDevelopment?: boolean;
   testDisplayName?: string;
   isTwoTestCourse?: boolean;
+  isSingleAssessment?: boolean;
+  minimumActivityCount?: number;
+  activityTitle?: string;
 
   actNo: number | string;
   onActNoChange: (val: number | string) => void;
@@ -50,6 +53,9 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
   isSelfDevelopment = false,
   testDisplayName,
   isTwoTestCourse = false,
+  isSingleAssessment = false,
+  minimumActivityCount = 0,
+  activityTitle,
   actNo,
   onActNoChange,
   actScores,
@@ -81,7 +87,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-5 bg-[#172554] text-white">
         <div className="flex items-center gap-3">
           <span className="px-2.5 py-0.5 bg-white text-[#172554] font-black text-sm uppercase">
-            {isTwoTestCourse ? `TEST ${number}` : `CA ${number}`}
+            {isTwoTestCourse ? `TEST ${number}` : isSingleAssessment ? 'ASSESSMENT' : `CA ${number}`}
           </span>
           <h3 className="text-base sm:text-lg font-bold tracking-wide">{isTwoTestCourse ? testDisplayName : title}</h3>
         </div>
@@ -257,7 +263,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
         {/* Category 2: Assignments / Activities (weight depends on course type) */}
         {hasActivities && <div className={`${hasLab ? 'lg:col-span-4' : 'lg:col-span-6'} bg-white`}>
           <DynamicScoreBoxes
-            title={hasLab && !isSelfDevelopment ? 'Assignments' : 'Activities'}
+            title={activityTitle ?? (hasLab && !isSelfDevelopment ? 'Assignments' : 'Activities')}
             category="assignment"
             count={actNo}
             onCountChange={onActNoChange}
@@ -269,6 +275,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
             calculatedPoints={actPoints}
             caName={`CA ${number}`}
             estimatedMarks={estimatedMarks}
+            minimumCount={minimumActivityCount}
           />
         </div>}
 

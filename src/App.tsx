@@ -4,6 +4,8 @@ import { SubjectData } from './types';
 import {
   DEFAULT_SUBJECT,
   calculateMarks,
+  getCourseType,
+  getCourseWeights,
   syncScoresArray,
   GRADE_SCALE,
   SPECIAL_GRADES,
@@ -61,7 +63,7 @@ function findSubjectForCourse(subjects: SubjectData[], course: PresetCourse): Su
   return subjects.find((subject) => {
     if (course.code && subject.code === course.code) return true;
     return subject.name.trim().toLowerCase() === course.name.toLowerCase() &&
-      (!subject.courseType || subject.courseType === course.courseType);
+      (!subject.courseType || subject.courseType === course.courseType || getCourseType(subject) === course.courseType);
   });
 }
 
@@ -69,13 +71,84 @@ function findPresetForSubject(subject: SubjectData): PresetCourse | undefined {
   return PRESET_COURSES.find((course) => {
     if (course.code && subject.code === course.code) return true;
     return subject.name.trim().toLowerCase() === course.name.toLowerCase() &&
-      (!subject.courseType || subject.courseType === course.courseType);
+      (!subject.courseType || subject.courseType === course.courseType || getCourseType(subject) === course.courseType);
   });
+}
+
+function normalizeSubjectForSyllabus(subject: SubjectData): SubjectData {
+  const normalizedName = subject.name.trim().toLowerCase().replace(/[–—-]/g, ' ').replace(/\s+/g, ' ');
+  if (normalizedName === 'universal human values') return { ...subject, courseType: 'universal-human-values' };
+  if (normalizedName === 'standards computer science & engg.') return { ...subject, courseType: 'standards-course' };
+  if (normalizedName === 'industry oriented course i' || normalizedName === 'industry oriented course ii' || normalizedName === 'industry oriented course iii') {
+    return { ...subject, courseType: 'industry-oriented-tests' };
+  }
+  if (normalizedName === 'audit course i' || normalizedName === 'audit course ii') return { ...subject, courseType: 'audit-course' };
+  if (normalizedName === 'heritage of tamils' || normalizedName === 'tamils and technology') return { ...subject, courseType: 'heritage-course' };
+  if (normalizedName === 'self learning course') return { ...subject, code: 'CS23L01', courseType: 'self-learning' };
+  if (normalizedName === 'skill development course i') return { ...subject, courseType: 'laboratory-course' };
+  if (normalizedName === 'open elective ii') return { ...subject, code: '', courseType: 'theory' };
+  if (normalizedName === 'cryptography and system security' || normalizedName === 'compiler design') return { ...subject, courseType: '3-0-2' };
+  if (normalizedName === 'engineering entrepreneurship development') return { ...subject, code: 'UC23E01', courseType: '2-0-2' };
+  if (normalizedName === 'perspectives of sustainable development' || normalizedName === 'perspectives of sustainability development') {
+    return { ...subject, name: 'Perspectives of Sustainability Development', code: 'CS23U02', courseType: '2-0-2' };
+  }
+  if (normalizedName === 'makespace' || normalizedName === 'makerspace') return { ...subject, name: 'Makerspace', courseType: '1-0-4' };
+  if (normalizedName === 'project work' || normalizedName === 'internship cum project work' || normalizedName === 'project work internship cum project work') {
+    return { ...subject, name: 'Project Work / Internship cum Project Work', code: 'CS23801', courseType: 'project' };
+  }
+  const matchingPreset = PRESET_COURSES.find((course) =>
+    course.name.trim().toLowerCase().replace(/[–—-]/g, ' ').replace(/\s+/g, ' ') === normalizedName
+  );
+  if (matchingPreset) {
+    return { ...subject, name: matchingPreset.name, code: matchingPreset.code, courseType: matchingPreset.courseType };
+  }
+  return subject;
+}
+
+function mergeDuplicateProjectSubjects(subjects: SubjectData[]): SubjectData[] {
+  const projects = subjects.filter((subject) => ['project', 'project-work'].includes(getCourseType(subject)));
+  if (projects.length < 2) return subjects;
+  const projectMarkKeys: Array<keyof NonNullable<SubjectData['projectWorkMarks']>> = [
+    'reviewI', 'reviewII', 'reviewIII', 'thesisGuide', 'thesisExternal', 'vivaExternal', 'vivaInternal',
+  ];
+  const projectWithMostMarks = [...projects].sort((first, second) => {
+    const countMarks = (subject: SubjectData) => projectMarkKeys.filter((key) => {
+      const mark = subject.projectWorkMarks?.[key];
+      return mark !== '' && mark !== null && mark !== undefined;
+    }).length;
+    return countMarks(second) - countMarks(first);
+  })[0];
+  const mergedProjectMark = (key: keyof NonNullable<SubjectData['projectWorkMarks']>) => {
+    const markedSubject = projects.find((subject) => {
+      const mark = subject.projectWorkMarks?.[key];
+      return mark !== '' && mark !== null && mark !== undefined;
+    });
+    return markedSubject?.projectWorkMarks?.[key] ?? '';
+  };
+  const projectWorkMarks = {
+    reviewI: mergedProjectMark('reviewI'),
+    reviewII: mergedProjectMark('reviewII'),
+    reviewIII: mergedProjectMark('reviewIII'),
+    thesisGuide: mergedProjectMark('thesisGuide'),
+    thesisExternal: mergedProjectMark('thesisExternal'),
+    vivaExternal: mergedProjectMark('vivaExternal'),
+    vivaInternal: mergedProjectMark('vivaInternal'),
+  };
+  const merged = {
+    ...projectWithMostMarks,
+    name: 'Project Work / Internship cum Project Work',
+    code: 'CS23801',
+    courseType: 'project' as const,
+    projectWorkMarks,
+  };
+  const projectIds = new Set(projects.map((subject) => subject.id));
+  return [...subjects.filter((subject) => !projectIds.has(subject.id)), merged];
 }
 
 function hasEnteredSubjectMarks(subject: SubjectData): boolean {
   const scalarMarks = [subject.ese, subject.eseLab, subject.test1, subject.test2,
-    subject.act1No, subject.act2No, subject.lab1No, subject.lab2No];
+    subject.act1No, subject.act2No, subject.lab1No, subject.lab2No,
+    subject.labCourseWorkMark, subject.labCourseMidtermMark, subject.labCourseExamMark];
   return scalarMarks.some((value) => value !== '' && value !== null && value !== undefined) ||
     [...subject.act1Scores, ...subject.act2Scores, ...subject.lab1Scores, ...subject.lab2Scores]
       .some((value) => value !== '' && value !== null && value !== undefined) ||
@@ -260,11 +333,19 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     void loadUserWorkspace(user.uid)
       .then((workspace) => {
         if (cancelled) return;
-        const loadedSubjects = workspace.subjects;
+        const loadedSubjects = mergeDuplicateProjectSubjects(workspace.subjects.map(normalizeSubjectForSyllabus));
         const preferredId = workspace.preferences.currentSubjectId;
         const selectedId = loadedSubjects.some((subject) => subject.id === preferredId)
           ? preferredId
           : loadedSubjects[0]?.id ?? '';
+        const recalculationRequiredTypes = new Set([
+          'universal-human-values', 'standards-course', 'audit-course', 'heritage-course', 'self-learning',
+          'laboratory-course', 'project', 'project-work',
+        ]);
+        const currentCalculationSignatures = { ...workspace.calculatedSignatures };
+        loadedSubjects.forEach((subject) => {
+          if (recalculationRequiredTypes.has(getCourseType(subject))) delete currentCalculationSignatures[subject.id];
+        });
         setSubjects(loadedSubjects);
         setCurrentSubjectId(selectedId);
         const firstMatchedCourse = loadedSubjects.map(findPresetForSubject).find(Boolean);
@@ -277,7 +358,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         setActiveTab(workspace.preferences.activeTab);
         setIncludeEstimates(workspace.preferences.includeEstimates);
         setEstimatePercentage(workspace.preferences.estimatePercentage);
-        setCalculatedSignatures(workspace.calculatedSignatures);
+        setCalculatedSignatures(currentCalculationSignatures);
         setGpaHistory(workspace.gpaHistory);
         setLegacySubjects(parseLegacySubjects());
         setMigrationResolved(workspace.migrationResolved);
@@ -366,9 +447,12 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     currentSubject.code === 'CS23101' ||
     currentSubject.courseType === '1-0-2' ||
     Boolean(currentSubject.name && currentSubject.name.toLowerCase().includes('computational'));
-  const isIndustryOrientedTests =
-    currentSubject.courseType === 'industry-oriented-tests' ||
-    currentSubject.name.trim().toLowerCase() === 'industry oriented course i';
+  const isIndustryOrientedTests = getCourseType(currentSubject) === 'industry-oriented-tests';
+  const currentCourseType = getCourseType(currentSubject);
+  const isUniversalHumanValues = currentCourseType === 'universal-human-values';
+  const isSelfLearning = currentCourseType === 'self-learning';
+  const isLaboratoryCourse = currentCourseType === 'laboratory-course';
+  const isTwoTestCourse = ['industry-oriented-tests', 'standards-course', 'audit-course', 'heritage-course'].includes(currentCourseType);
 
   // Update specific fields of the current subject
   const updateCurrentSubject = (updates: Partial<SubjectData>) => {
@@ -383,28 +467,28 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         if (updates.act1No !== undefined) {
           const previousLength = updated.act1Scores.length;
           updated.act1Scores = syncScoresArray(updated.act1Scores, updates.act1No);
-          if (!includeEstimates) {
+          if (!includeEstimates && !isUniversalHumanValues) {
             for (let index = previousLength; index < updated.act1Scores.length; index += 1) updated.act1Scores[index] = 8;
           }
         }
         if (updates.act2No !== undefined) {
           const previousLength = updated.act2Scores.length;
           updated.act2Scores = syncScoresArray(updated.act2Scores, updates.act2No);
-          if (!includeEstimates) {
+          if (!includeEstimates && !isUniversalHumanValues) {
             for (let index = previousLength; index < updated.act2Scores.length; index += 1) updated.act2Scores[index] = 8;
           }
         }
         if (updates.lab1No !== undefined) {
           const previousLength = updated.lab1Scores.length;
           updated.lab1Scores = syncScoresArray(updated.lab1Scores, updates.lab1No);
-          if (!includeEstimates) {
+          if (!includeEstimates && !isUniversalHumanValues) {
             for (let index = previousLength; index < updated.lab1Scores.length; index += 1) updated.lab1Scores[index] = 8;
           }
         }
         if (updates.lab2No !== undefined) {
           const previousLength = updated.lab2Scores.length;
           updated.lab2Scores = syncScoresArray(updated.lab2Scores, updates.lab2No);
-          if (!includeEstimates) {
+          if (!includeEstimates && !isUniversalHumanValues) {
             for (let index = previousLength; index < updated.lab2Scores.length; index += 1) updated.lab2Scores[index] = 8;
           }
         }
@@ -448,6 +532,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         name: course.name,
         code: course.code,
         courseType: course.courseType,
+        ...(course.courseType === 'universal-human-values'
+          ? { act1No: 2, act1Scores: ['', ''] }
+          : {}),
+        ...(course.courseType === 'self-learning' ? { selfLearningPassMark: 50 } : {}),
       };
       setSubjects((previous) => previous.some((subject) => findSubjectForCourse(previous, course))
         ? previous
@@ -487,7 +575,11 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     setMigrationBusy(true);
     setMigrationError('');
     try {
-      const imported = await importLegacySubjects(user.uid, legacySubjects, subjects);
+      const imported = await importLegacySubjects(
+        user.uid,
+        mergeDuplicateProjectSubjects(legacySubjects.map(normalizeSubjectForSyllabus)),
+        subjects
+      );
       const nextSubjects = [...subjects, ...imported];
       persistedSubjectsRef.current = new Map(
         nextSubjects.map((subject) => [subject.id, JSON.stringify(subject)])
@@ -548,6 +640,29 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     const course = GPA_COURSES.find(
       (item) => (Boolean(item.code) && item.code === subjectSnapshot.code) || item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase() || (item.code === 'CS23801' && ['project', 'project-work'].includes(subjectSnapshot.courseType ?? ''))
     );
+    const hasMark = (value: number | string | null | undefined) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
+    const calculationType = getCourseType(subjectSnapshot);
+    let incompleteMessage = '';
+    if (calculationType === 'self-learning' && !hasMark(subjectSnapshot.ese)) {
+      incompleteMessage = 'Enter the final mark from the approved Self-Learning Course provider.';
+    } else if (calculationType === 'universal-human-values' && (!hasMark(subjectSnapshot.test1) || Number(subjectSnapshot.act1No) < 2 || subjectSnapshot.act1Scores.slice(0, 2).some((score) => !hasMark(score)))) {
+      incompleteMessage = 'Enter the UHV test mark and marks for at least two assignments.';
+    } else if (calculationType === 'laboratory-course' && [subjectSnapshot.labCourseWorkMark, subjectSnapshot.labCourseMidtermMark, subjectSnapshot.labCourseExamMark].some((mark) => !hasMark(mark))) {
+      incompleteMessage = 'Enter all three laboratory-course marks before calculating.';
+    } else if ((calculationType === 'project' || calculationType === 'project-work') && Object.values(subjectSnapshot.projectWorkMarks ?? {}).some((mark) => !hasMark(mark))) {
+      incompleteMessage = 'Enter all review, project-report, and viva marks before calculating.';
+    } else if (calculationType !== 'self-learning' && calculationType !== 'universal-human-values' && calculationType !== 'laboratory-course' && calculationType !== 'project' && calculationType !== 'project-work') {
+      const weights = getCourseWeights(calculationType);
+      if (weights.testWeight > 0 && (!hasMark(subjectSnapshot.test1) || !hasMark(subjectSnapshot.test2))) incompleteMessage = 'Enter marks for both assessments before calculating.';
+      else if (weights.actWeight > 0 && (!includeEstimates && (Number(subjectSnapshot.act1No) < 1 || Number(subjectSnapshot.act2No) < 1 || subjectSnapshot.act1Scores.slice(0, Number(subjectSnapshot.act1No)).some((mark) => !hasMark(mark)) || subjectSnapshot.act2Scores.slice(0, Number(subjectSnapshot.act2No)).some((mark) => !hasMark(mark))))) incompleteMessage = 'Enter at least one activity mark for each assessment before calculating.';
+      else if (weights.labWeight > 0 && (!includeEstimates && (Number(subjectSnapshot.lab1No) < 1 || Number(subjectSnapshot.lab2No) < 1 || subjectSnapshot.lab1Scores.slice(0, Number(subjectSnapshot.lab1No)).some((mark) => !hasMark(mark)) || subjectSnapshot.lab2Scores.slice(0, Number(subjectSnapshot.lab2No)).some((mark) => !hasMark(mark))))) incompleteMessage = 'Enter at least one practical/lab mark for each assessment before calculating.';
+      else if (weights.eseTheoryWeight > 0 && !hasMark(subjectSnapshot.ese)) incompleteMessage = 'Enter the end-semester theory mark before calculating.';
+      else if (weights.eseLabWeight > 0 && !includeEstimates && !hasMark(subjectSnapshot.eseLab)) incompleteMessage = 'Enter the end-semester practical mark or enable estimates before calculating.';
+    }
+    if (incompleteMessage) {
+      setSaveError(incompleteMessage);
+      return;
+    }
 
     setCalculationBusy(true);
     setSaveError('');
@@ -709,7 +824,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   {breakdown.total.toFixed(2)} / 100
                 </span>
                 <span className="text-[#172554] font-bold">·</span>
-                <span className="font-black text-[#172554]">Grade {breakdown.grade.letter}</span>
+                <span className="font-black text-[#172554]">Indicative grade {breakdown.grade.letter}</span>
                 <span className="text-[#172554] font-bold">·</span>
                 <button
                   type="button"
@@ -923,7 +1038,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   {currentSubject.courseType === 'project' && (
                     <div className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs sm:text-sm text-amber-900">
                       <span className="font-black uppercase tracking-wider">Internship cum Project Work:</span>{' '}
-                      Using the app’s existing 60% CA / 40% ESE calculation. Project Work alone uses the separate Table 6 review, thesis-report, and viva-voce rubric.
+                      Three reviews contribute 60%; project thesis report evaluation and viva-voce contribute 20% each.
                     </div>
                   )}
 
@@ -968,8 +1083,93 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                     )}
                   </div>
 
-                  {breakdown.courseType === 'project-work' ? (
+                  {isLaboratoryCourse ? (
+                    <section className="space-y-3 border border-slate-300 bg-white p-4 sm:p-5" aria-labelledby="lab-course-heading">
+                      <h3 id="lab-course-heading" className="font-black uppercase tracking-wide text-[#172554]">Laboratory Course Assessment</h3>
+                      <p className="text-sm text-slate-600">Regulation 17.6: work/observation/record 45%, midterm practical test 15%, and end-semester practical examination 40%.</p>
+                      <label className="block text-xs font-bold uppercase tracking-wide text-[#172554]" htmlFor="lab-course-work">Student work, observation and record — 45%</label>
+                      <input id="lab-course-work" type="number" min={0} max={100} step={0.5} value={currentSubject.labCourseWorkMark ?? ''} onChange={(event) => {
+                        const raw = event.currentTarget.value;
+                        updateCurrentSubject({ labCourseWorkMark: raw === '' ? '' : Math.min(100, Math.max(0, Number(raw) || 0)) });
+                      }} className="w-full max-w-xs border border-[#172554] bg-white px-3 py-2 text-base font-bold text-[#172554]" placeholder="Score out of 100" />
+                      <label className="block text-xs font-bold uppercase tracking-wide text-[#172554]" htmlFor="lab-course-midterm">Midterm practical test — 15%</label>
+                      <input id="lab-course-midterm" type="number" min={0} max={100} step={0.5} value={currentSubject.labCourseMidtermMark ?? ''} onChange={(event) => {
+                        const raw = event.currentTarget.value;
+                        updateCurrentSubject({ labCourseMidtermMark: raw === '' ? '' : Math.min(100, Math.max(0, Number(raw) || 0)) });
+                      }} className="w-full max-w-xs border border-[#172554] bg-white px-3 py-2 text-base font-bold text-[#172554]" placeholder="Score out of 100" />
+                      <label className="block text-xs font-bold uppercase tracking-wide text-[#172554]" htmlFor="lab-course-exam">End-semester practical examination — 40%</label>
+                      <input id="lab-course-exam" type="number" min={0} max={100} step={0.5} value={currentSubject.labCourseExamMark ?? ''} onChange={(event) => {
+                        const raw = event.currentTarget.value;
+                        updateCurrentSubject({ labCourseExamMark: raw === '' ? '' : Math.min(100, Math.max(0, Number(raw) || 0)) });
+                      }} className="w-full max-w-xs border border-[#172554] bg-white px-3 py-2 text-base font-bold text-[#172554]" placeholder="Score out of 100" />
+                    </section>
+                  ) : isSelfLearning ? (
+                    <section className="border border-slate-300 bg-white p-4 sm:p-5" aria-labelledby="slc-result-heading">
+                      <h3 id="slc-result-heading" className="font-black uppercase tracking-wide text-[#172554]">Self-Learning Course Result</h3>
+                      <p className="mt-1 text-sm text-slate-600">Enter the final mark reported by the approved learning provider. No CA or ESE is calculated in this app.</p>
+                      <label className="mt-4 block text-xs font-bold uppercase tracking-wide text-[#172554]" htmlFor="slc-final-mark">External result out of 100</label>
+                      <input
+                        id="slc-final-mark"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        value={currentSubject.ese}
+                        onChange={(event) => {
+                          const raw = event.currentTarget.value;
+                          updateCurrentSubject({ ese: raw === '' ? '' : Math.min(100, Math.max(0, Number(raw) || 0)) });
+                        }}
+                        className="mt-1 w-full max-w-xs border border-[#172554] bg-white px-3 py-2 text-base font-bold text-[#172554]"
+                      />
+                      <label className="mt-4 flex max-w-sm flex-col gap-1 text-xs font-bold uppercase tracking-wide text-[#172554]" htmlFor="slc-pass-mark">
+                        Passing threshold
+                        <select
+                          id="slc-pass-mark"
+                          value={Number(currentSubject.selfLearningPassMark) === 40 ? 40 : 50}
+                          onChange={(event) => updateCurrentSubject({ selfLearningPassMark: Number(event.currentTarget.value) })}
+                          className="border border-slate-300 bg-white px-3 py-2 text-sm font-semibold normal-case"
+                        >
+                          <option value={50}>Other approved provider — 50%</option>
+                          <option value={40}>NPTEL / SWAYAM — 40%</option>
+                        </select>
+                      </label>
+                      <p className="mt-2 text-xs text-slate-600">The provider’s official result and grade conversion remain authoritative.</p>
+                    </section>
+                  ) : isUniversalHumanValues ? (
+                    <ContinuousAssessmentSection
+                      number={1}
+                      title="Universal Human Values — Continuous Assessment"
+                      testMax={currentSubject.test1Max}
+                      test={currentSubject.test1}
+                      onTestMaxChange={(val) => updateCurrentSubject({ test1Max: val })}
+                      onTestChange={(val) => updateCurrentSubject({ test1: val })}
+                      testPoints={breakdown.test1_p}
+                      testWeight={70}
+                      allowCustomTestMax
+                      testDisplayName="UHV Test"
+                      isSingleAssessment
+                      minimumActivityCount={2}
+                      activityTitle="Assignments"
+                      actNo={currentSubject.act1No}
+                      onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
+                      actScores={currentSubject.act1Scores}
+                      onActScoresChange={(scores) => updateCurrentSubject({ act1Scores: scores })}
+                      actPoints={breakdown.act1_p}
+                      actWeight={30}
+                      actStartIndex={1}
+                      labNo={0}
+                      onLabNoChange={() => undefined}
+                      labScores={[]}
+                      onLabScoresChange={() => undefined}
+                      labPoints={0}
+                      labWeight={0}
+                      labStartIndex={1}
+                      subtotal={breakdown.total}
+                      caMax={100}
+                    />
+                  ) : breakdown.courseType === 'project-work' || breakdown.courseType === 'project' ? (
                     <ProjectWorkAssessmentSection
+                      assessmentTitle={breakdown.courseType === 'project' ? 'Internship cum Project Work assessment — Regulation 17.7' : undefined}
                       marks={currentSubject.projectWorkMarks ?? {
                         reviewI: '', reviewII: '', reviewIII: '', thesisGuide: '', thesisExternal: '', vivaExternal: '', vivaInternal: '',
                       }}
@@ -980,16 +1180,16 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   {/* CA 1 Section */}
                   <ContinuousAssessmentSection
                     number={1}
-                    title={isIndustryOrientedTests ? 'Mid Term Test' : 'Continuous Assessment 1'}
+                    title={isIndustryOrientedTests ? 'Mid-Term Test' : currentCourseType === 'standards-course' ? 'Standards Test I — Mid-Term' : currentCourseType === 'audit-course' ? 'Audit Test I — Mid-Term' : currentCourseType === 'heritage-course' ? 'Heritage Assessment Test I' : 'Continuous Assessment 1'}
                     testMax={currentSubject.test1Max}
                     test={currentSubject.test1}
                     onTestMaxChange={(val) => updateCurrentSubject({ test1Max: val })}
                     onTestChange={(val) => updateCurrentSubject({ test1: val })}
                     testPoints={breakdown.test1_p}
                     testWeight={breakdown.testWeight}
-                    allowCustomTestMax={isComputationalThinking || isIndustryOrientedTests}
-                    testDisplayName={isIndustryOrientedTests ? 'MID TERM TEST' : undefined}
-                    isTwoTestCourse={isIndustryOrientedTests}
+                    allowCustomTestMax={isComputationalThinking || isTwoTestCourse}
+                    testDisplayName={isIndustryOrientedTests ? 'MID TERM TEST' : currentCourseType === 'standards-course' ? 'STANDARDS TEST I' : currentCourseType === 'audit-course' ? 'AUDIT TEST I' : currentCourseType === 'heritage-course' ? 'HERITAGE ASSESSMENT TEST I' : undefined}
+                    isTwoTestCourse={isTwoTestCourse}
                     isSelfDevelopment={breakdown.courseType === 'self-development'}
                     actNo={displayedSubject.act1No}
                     onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
@@ -1011,18 +1211,18 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   />
 
                 {/* CA 2 Section */}
-                <ContinuousAssessmentSection
+                {!isUniversalHumanValues && <ContinuousAssessmentSection
                   number={2}
-                  title={isIndustryOrientedTests ? 'End Course Test' : 'Continuous Assessment 2'}
+                  title={isIndustryOrientedTests ? 'End-Course Test' : currentCourseType === 'standards-course' ? 'Standards Test II' : currentCourseType === 'audit-course' ? 'Audit Test II' : currentCourseType === 'heritage-course' ? 'Heritage Assessment Test II' : 'Continuous Assessment 2'}
                   testMax={currentSubject.test2Max}
                   test={currentSubject.test2}
                   onTestMaxChange={(val) => updateCurrentSubject({ test2Max: val })}
                   onTestChange={(val) => updateCurrentSubject({ test2: val })}
                   testPoints={breakdown.test2_p}
                   testWeight={breakdown.testWeight}
-                  allowCustomTestMax={isComputationalThinking || isIndustryOrientedTests}
-                  testDisplayName={isIndustryOrientedTests ? 'END COURSE TEST' : undefined}
-                  isTwoTestCourse={isIndustryOrientedTests}
+                  allowCustomTestMax={isComputationalThinking || isTwoTestCourse}
+                  testDisplayName={isIndustryOrientedTests ? 'END COURSE TEST' : currentCourseType === 'standards-course' ? 'STANDARDS TEST II' : currentCourseType === 'audit-course' ? 'AUDIT TEST II' : currentCourseType === 'heritage-course' ? 'HERITAGE ASSESSMENT TEST II' : undefined}
+                  isTwoTestCourse={isTwoTestCourse}
                   isSelfDevelopment={breakdown.courseType === 'self-development'}
                   actNo={displayedSubject.act2No}
                   onActNoChange={(val) => updateCurrentSubject({ act2No: val })}
@@ -1041,10 +1241,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   subtotal={breakdown.ca2_total}
                   caMax={breakdown.caMax}
                   estimatedMarks={currentSubjectUsesEstimates}
-                />
+                />}
 
                 {/* End Semester Section */}
-                {!isIndustryOrientedTests && <EndSemesterSection
+                {breakdown.eseWeight > 0 && <EndSemesterSection
                   courseType={breakdown.courseType}
                   ese={currentSubject.ese}
                   onEseChange={(val) => updateCurrentSubject({ ese: val })}
@@ -1095,6 +1295,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
               <h2 className="text-lg font-black text-[#172554] mb-1 uppercase tracking-wide">
                 Grading of Courses
               </h2>
+              <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                These mark bands are indicative only. Regulation 20.2 specifies customized grading based on course averages and relative student performance, finalized by the Academic Monitoring Committee. Official grades may differ.
+              </p>
               <div className="overflow-x-auto border border-slate-200">
                 <table className="w-full text-left text-sm border-collapse">
                   <thead>
