@@ -83,7 +83,8 @@ export const ResultsSummaryPanel: React.FC<ResultsSummaryPanelProps> = ({
         'UNIVERSAL HUMAN VALUES — CONTINUOUS ASSESSMENT ONLY',
         `Course: ${subject.name}`,
         `Test: ${Number(subject.test1 || 0).toFixed(2)} / ${test1MaxNum} | Contribution ${breakdown.test1_p.toFixed(2)} / 70`,
-        `Assignments: ${act1Sum.toFixed(2)} / ${act1Count * 10} | Contribution ${breakdown.act1_p.toFixed(2)} / 30`,
+        `Assignment 1: ${act1Sum.toFixed(2)} / ${act1Count * 10} | Contribution ${breakdown.act1_p.toFixed(2)} / 15`,
+        `Assignment 2: ${act2Sum.toFixed(2)} / ${act2Count * 10} | Contribution ${breakdown.act2_p.toFixed(2)} / 15`,
         `Total: ${breakdown.total.toFixed(2)} / 100`,
         `Indicative outcome: ${breakdown.grade.letter}`,
       ].join('\n');
@@ -259,17 +260,6 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
         </div>
       </div>
 
-      {isSelfLearningCourse && (
-        <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          SLC grade is an app estimate from the entered mark and selected pass threshold. Use the approved provider’s official result and conversion.
-        </p>
-      )}
-      {breakdown.courseType !== 'self-learning' && (
-        <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          Indicative grade only: Regulation 20.2 specifies customized grading based on course averages and relative performance, finalized by the Academic Monitoring Committee.
-        </p>
-      )}
-
       {/* Mobile scroll hint */}
       <div className="flex sm:hidden items-center justify-between text-[11px] font-bold text-[#1e3a8a] mb-1.5 px-0.5">
         <span>Detailed Distribution:</span>
@@ -284,7 +274,8 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
           <thead className="bg-[#172554] text-white text-xs uppercase tracking-wide"><tr><th className="px-4 py-3">Continuous assessment component</th><th className="px-4 py-3 text-center">Weight</th><th className="px-4 py-3 text-right">Raw marks</th><th className="px-4 py-3 text-right">Contribution</th></tr></thead>
           <tbody className="divide-y divide-slate-200">
             <tr><td className="px-4 py-3 font-semibold">One test</td><td className="px-4 py-3 text-center">70%</td><td className="px-4 py-3 text-right">{Number(subject.test1 || 0).toFixed(2)} / {test1MaxNum}</td><td className="px-4 py-3 text-right font-bold">{breakdown.test1_p.toFixed(2)} / 70</td></tr>
-            <tr><td className="px-4 py-3 font-semibold">Assignments ({act1Count})</td><td className="px-4 py-3 text-center">30%</td><td className="px-4 py-3 text-right">{act1Sum.toFixed(2)} / {act1Count * 10}</td><td className="px-4 py-3 text-right font-bold">{breakdown.act1_p.toFixed(2)} / 30</td></tr>
+            <tr><td className="px-4 py-3 font-semibold">Assignment 1 ({act1Count})</td><td className="px-4 py-3 text-center">15%</td><td className="px-4 py-3 text-right">{act1Sum.toFixed(2)} / {act1Count * 10}</td><td className="px-4 py-3 text-right font-bold">{breakdown.act1_p.toFixed(2)} / 15</td></tr>
+            <tr><td className="px-4 py-3 font-semibold">Assignment 2 ({act2Count})</td><td className="px-4 py-3 text-center">15%</td><td className="px-4 py-3 text-right">{act2Sum.toFixed(2)} / {act2Count * 10}</td><td className="px-4 py-3 text-right font-bold">{breakdown.act2_p.toFixed(2)} / 15</td></tr>
             <tr className="bg-[#172554] text-white font-black"><td className="px-4 py-3">Total</td><td className="px-4 py-3 text-center">100%</td><td className="px-4 py-3 text-right">—</td><td className="px-4 py-3 text-right">{breakdown.total.toFixed(2)} / 100</td></tr>
           </tbody>
         </table>

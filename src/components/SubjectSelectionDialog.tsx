@@ -448,7 +448,7 @@ export const PRESET_COURSES: PresetCourse[] = [
     id: 'CS23602',
     name: 'Compiler Design',
     code: 'CS23602',
-    type: 'UC · evaluated as LIT (2-0-2)',
+    type: '3-0-2',
     courseType: '3-0-2',
     semester: 6,
     group: 'core',

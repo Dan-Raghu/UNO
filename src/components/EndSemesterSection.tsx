@@ -110,7 +110,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
         {/* Subtotal */}
         <div className="flex items-baseline gap-2 self-start sm:self-auto text-white">
           <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
-            MARKS:
+            MARKS CONTRIBUTED:
           </span>
           <span className="text-lg font-black tabular-nums">
             {esePoints.toFixed(2)}{' '}
@@ -180,16 +180,12 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                 />
               </div>
 
-              <div className="p-2.5 bg-slate-50 border border-slate-300 text-[11px] text-[#172554] space-y-0.5">
-                <span className="font-bold block">Calculation Formula:</span>
-                <span>Theory Marks / 100 × {eseTheoryWeight} = Marks Contributed</span>
-              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-200 mt-4">
               <div className="flex items-baseline justify-between text-[#172554]">
                 <span className="text-xs font-bold uppercase tracking-wider">
-                  MARKS:
+                  MARKS CONTRIBUTED:
                 </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-black tabular-nums">
@@ -308,16 +304,12 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                 />
               </div>
 
-              <div className="p-2.5 bg-slate-50 border border-slate-300 text-[11px] text-[#172554] space-y-0.5">
-                <span className="font-bold block">Calculation Formula:</span>
-                <span>{labName} Marks / {numericLabMax} × {eseLabWeight} = Marks Contributed</span>
-              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-200 mt-4">
               <div className="flex items-baseline justify-between text-[#172554]">
                 <span className="text-xs font-bold uppercase tracking-wider">
-                  {estimatedLabMark ? 'MARKS (Based on the average estimate):' : 'MARKS:'}
+                  {estimatedLabMark ? 'MARKS CONTRIBUTED (ESTIMATE):' : 'MARKS CONTRIBUTED:'}
                 </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-black tabular-nums">
@@ -480,7 +472,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
             <div className="pt-1">
               <div className="flex items-baseline justify-between text-[#172554]">
                 <span className="text-xs font-bold uppercase tracking-wider">
-                  MARKS:
+                  MARKS CONTRIBUTED:
                 </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-black tabular-nums">

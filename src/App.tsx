@@ -11,6 +11,7 @@ import {
   SPECIAL_GRADES,
 } from './calculatorUtils';
 import { ContinuousAssessmentSection } from './components/ContinuousAssessmentSection';
+import { DynamicScoreBoxes } from './components/DynamicScoreBoxes';
 import { EndSemesterSection } from './components/EndSemesterSection';
 import { ResultsSummaryPanel } from './components/ResultsSummaryPanel';
 import { SubjectHeader } from './components/SubjectHeader';
@@ -533,7 +534,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         code: course.code,
         courseType: course.courseType,
         ...(course.courseType === 'universal-human-values'
-          ? { act1No: 2, act1Scores: ['', ''] }
+          ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
           : {}),
         ...(course.courseType === 'self-learning' ? { selfLearningPassMark: 50 } : {}),
       };
@@ -637,16 +638,31 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
       : subjectSnapshot;
     const calculationBreakdown = calculateMarks(calculationSubject);
     const inputSignature = JSON.stringify(subjectSnapshot);
-    const course = GPA_COURSES.find(
-      (item) => (Boolean(item.code) && item.code === subjectSnapshot.code) || item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase() || (item.code === 'CS23801' && ['project', 'project-work'].includes(subjectSnapshot.courseType ?? ''))
+    const presetCourse = PRESET_COURSES.find(
+      (item) => (Boolean(item.code) && item.code === subjectSnapshot.code) ||
+        item.name.trim().toLowerCase() === subjectSnapshot.name.trim().toLowerCase()
     );
+    const course = presetCourse?.electiveSlot
+      ? GPA_COURSES.find((item) =>
+          item.semester === presetCourse.semester && item.electiveSlot === presetCourse.electiveSlot
+        )
+      : GPA_COURSES.find(
+          (item) => (Boolean(item.code) && item.code === subjectSnapshot.code) ||
+            item.name.toLowerCase() === subjectSnapshot.name.trim().toLowerCase() ||
+            (item.code === 'CS23801' && ['project', 'project-work'].includes(subjectSnapshot.courseType ?? ''))
+        );
     const hasMark = (value: number | string | null | undefined) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
     const calculationType = getCourseType(subjectSnapshot);
     let incompleteMessage = '';
     if (calculationType === 'self-learning' && !hasMark(subjectSnapshot.ese)) {
       incompleteMessage = 'Enter the final mark from the approved Self-Learning Course provider.';
-    } else if (calculationType === 'universal-human-values' && (!hasMark(subjectSnapshot.test1) || Number(subjectSnapshot.act1No) < 2 || subjectSnapshot.act1Scores.slice(0, 2).some((score) => !hasMark(score)))) {
-      incompleteMessage = 'Enter the UHV test mark and marks for at least two assignments.';
+    } else if (calculationType === 'universal-human-values' && (
+      !hasMark(subjectSnapshot.test1) ||
+      Number(subjectSnapshot.act1No) < 1 || Number(subjectSnapshot.act2No) < 1 ||
+      subjectSnapshot.act1Scores.slice(0, Number(subjectSnapshot.act1No)).some((score) => !hasMark(score)) ||
+      subjectSnapshot.act2Scores.slice(0, Number(subjectSnapshot.act2No)).some((score) => !hasMark(score))
+    )) {
+      incompleteMessage = 'Enter the UHV test mark and at least one assignment mark in each 15% assessment.';
     } else if (calculationType === 'laboratory-course' && [subjectSnapshot.labCourseWorkMark, subjectSnapshot.labCourseMidtermMark, subjectSnapshot.labCourseExamMark].some((mark) => !hasMark(mark))) {
       incompleteMessage = 'Enter all three laboratory-course marks before calculating.';
     } else if ((calculationType === 'project' || calculationType === 'project-work') && Object.values(subjectSnapshot.projectWorkMarks ?? {}).some((mark) => !hasMark(mark))) {
@@ -1035,13 +1051,6 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                     Course Type = {breakdown.courseTypeLabel}
                   </div>
 
-                  {currentSubject.courseType === 'project' && (
-                    <div className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs sm:text-sm text-amber-900">
-                      <span className="font-black uppercase tracking-wider">Internship cum Project Work:</span>{' '}
-                      Three reviews contribute 60%; project thesis report evaluation and viva-voce contribute 20% each.
-                    </div>
-                  )}
-
                   <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 border border-slate-300 bg-white px-3 py-2.5">
                     <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#172554] cursor-pointer">
                       <input
@@ -1136,37 +1145,67 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                       <p className="mt-2 text-xs text-slate-600">The provider’s official result and grade conversion remain authoritative.</p>
                     </section>
                   ) : isUniversalHumanValues ? (
-                    <ContinuousAssessmentSection
-                      number={1}
-                      title="Universal Human Values — Continuous Assessment"
-                      testMax={currentSubject.test1Max}
-                      test={currentSubject.test1}
-                      onTestMaxChange={(val) => updateCurrentSubject({ test1Max: val })}
-                      onTestChange={(val) => updateCurrentSubject({ test1: val })}
-                      testPoints={breakdown.test1_p}
-                      testWeight={70}
-                      allowCustomTestMax
-                      testDisplayName="UHV Test"
-                      isSingleAssessment
-                      minimumActivityCount={2}
-                      activityTitle="Assignments"
-                      actNo={currentSubject.act1No}
-                      onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
-                      actScores={currentSubject.act1Scores}
-                      onActScoresChange={(scores) => updateCurrentSubject({ act1Scores: scores })}
-                      actPoints={breakdown.act1_p}
-                      actWeight={30}
-                      actStartIndex={1}
-                      labNo={0}
-                      onLabNoChange={() => undefined}
-                      labScores={[]}
-                      onLabScoresChange={() => undefined}
-                      labPoints={0}
-                      labWeight={0}
-                      labStartIndex={1}
-                      subtotal={breakdown.total}
-                      caMax={100}
-                    />
+                    <div className="space-y-4">
+                      <ContinuousAssessmentSection
+                        number={1}
+                        title="Universal Human Values — Test"
+                        testMax={currentSubject.test1Max}
+                        test={currentSubject.test1}
+                        onTestMaxChange={(val) => updateCurrentSubject({ test1Max: val })}
+                        onTestChange={(val) => updateCurrentSubject({ test1: val })}
+                        testPoints={breakdown.test1_p}
+                        testWeight={70}
+                        allowCustomTestMax
+                        testDisplayName="UHV Test"
+                        isSingleAssessment
+                        actNo={0}
+                        onActNoChange={() => undefined}
+                        actScores={[]}
+                        onActScoresChange={() => undefined}
+                        actPoints={0}
+                        actWeight={0}
+                        actStartIndex={1}
+                        labNo={0}
+                        onLabNoChange={() => undefined}
+                        labScores={[]}
+                        onLabScoresChange={() => undefined}
+                        labPoints={0}
+                        labWeight={0}
+                        labStartIndex={1}
+                        subtotal={breakdown.test1_p}
+                        caMax={70}
+                      />
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <DynamicScoreBoxes
+                          title="Assignment 1"
+                          category="assignment"
+                          count={currentSubject.act1No}
+                          onCountChange={(count) => updateCurrentSubject({ act1No: count })}
+                          scores={currentSubject.act1Scores}
+                          onScoresChange={(scores) => updateCurrentSubject({ act1Scores: scores })}
+                          startIndex={1}
+                          maxMarkPerBox={10}
+                          weight={15}
+                          calculatedPoints={breakdown.act1_p}
+                          caName="UHV Assignment 1"
+                          minimumCount={1}
+                        />
+                        <DynamicScoreBoxes
+                          title="Assignment 2"
+                          category="assignment"
+                          count={currentSubject.act2No}
+                          onCountChange={(count) => updateCurrentSubject({ act2No: count })}
+                          scores={currentSubject.act2Scores}
+                          onScoresChange={(scores) => updateCurrentSubject({ act2Scores: scores })}
+                          startIndex={1}
+                          maxMarkPerBox={10}
+                          weight={15}
+                          calculatedPoints={breakdown.act2_p}
+                          caName="UHV Assignment 2"
+                          minimumCount={1}
+                        />
+                      </div>
+                    </div>
                   ) : breakdown.courseType === 'project-work' || breakdown.courseType === 'project' ? (
                     <ProjectWorkAssessmentSection
                       assessmentTitle={breakdown.courseType === 'project' ? 'Internship cum Project Work assessment — Regulation 17.7' : undefined}

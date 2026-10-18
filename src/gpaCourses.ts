@@ -31,6 +31,7 @@ export const GPA_COURSES: readonly GpaCourse[] = [
   { code: 'MA23C05', name: 'Probability and Statistics', credits: 4, semester: 3 },
   { code: 'CS23301', name: 'Software Engineering', credits: 3, semester: 3 },
   { code: 'CS23U01', name: 'Standards - Computer Science & Engg.', credits: 1, semester: 3 },
+  { code: 'UC23U01', name: 'Universal Human Values', credits: 2, semester: 3 },
   { code: 'CS23302', name: 'Data Structures', credits: 5, semester: 3 },
   { code: 'CS23303', name: 'Digital System Design', credits: 5, semester: 3 },
   { code: 'CS23304', name: 'Java Programming', credits: 5, semester: 3 },
