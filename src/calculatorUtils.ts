@@ -338,13 +338,19 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
   if (courseType === 'universal-human-values') {
     const testMax = Math.max(1, parseNum(data.test1Max) || 50);
     const test = Math.max(0, Math.min(testMax, parseNum(data.test1)));
-    const activityCount = Math.max(0, Math.floor(parseNum(data.act1No)));
-    const activityScores = syncScoresArray(data.act1Scores, activityCount);
-    const activitySum = activityScores.reduce<number>((sum, value) => sum + Math.max(0, Math.min(10, parseNum(value))), 0);
+    const activity1Count = Math.max(0, Math.floor(parseNum(data.act1No)));
+    const activity2Count = Math.max(0, Math.floor(parseNum(data.act2No)));
+    const activity1Scores = syncScoresArray(data.act1Scores, activity1Count);
+    const activity2Scores = syncScoresArray(data.act2Scores, activity2Count);
+    const activity1Sum = activity1Scores.reduce<number>((sum, value) => sum + Math.max(0, Math.min(10, parseNum(value))), 0);
+    const activity2Sum = activity2Scores.reduce<number>((sum, value) => sum + Math.max(0, Math.min(10, parseNum(value))), 0);
     const testPoints = test / testMax * 70;
-    const activityPoints = activityCount > 0 ? activitySum / (activityCount * 10) * 30 : 0;
-    const total = round2(testPoints + activityPoints);
-    const requiredActivitiesComplete = activityCount >= 2 && activityScores.slice(0, 2).every((value) => value !== '' && value !== null && value !== undefined);
+    const activity1Points = activity1Count > 0 ? activity1Sum / (activity1Count * 10) * 15 : 0;
+    const activity2Points = activity2Count > 0 ? activity2Sum / (activity2Count * 10) * 15 : 0;
+    const total = round2(testPoints + activity1Points + activity2Points);
+    const requiredActivitiesComplete = activity1Count > 0 && activity2Count > 0 &&
+      activity1Scores.every((value) => value !== '' && value !== null && value !== undefined) &&
+      activity2Scores.every((value) => value !== '' && value !== null && value !== undefined);
     return {
       courseType,
       courseTypeLabel: weights.courseTypeLabel,
@@ -361,16 +367,16 @@ export function calculateMarks(data: SubjectData): CalculationBreakdown {
       ese_lab_p: 0,
       test1_p: round2(testPoints),
       test2_p: 0,
-      act1_sum: round2(activitySum),
-      act1_p: round2(activityPoints),
-      act2_sum: 0,
-      act2_p: 0,
+      act1_sum: round2(activity1Sum),
+      act1_p: round2(activity1Points),
+      act2_sum: round2(activity2Sum),
+      act2_p: round2(activity2Points),
       lab1_sum: 0,
       lab1_p: 0,
       lab2_sum: 0,
       lab2_p: 0,
-      ca1_total: total,
-      ca2_total: 0,
+      ca1_total: round2(testPoints + activity1Points),
+      ca2_total: round2(activity2Points),
       internal_total: total,
       total,
       grade: getGradeForScore(data.test1 !== '' && data.test1 !== null && data.test1 !== undefined && requiredActivitiesComplete && total >= 50 ? total : 49),

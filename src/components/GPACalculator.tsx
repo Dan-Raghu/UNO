@@ -63,7 +63,9 @@ function subjectMarksComplete(subject: SubjectData, allowEstimatedMarks = false)
     return entered(subject.labCourseWorkMark) && entered(subject.labCourseMidtermMark) && entered(subject.labCourseExamMark);
   }
   if (courseType === 'universal-human-values') {
-    return entered(subject.test1) && Number(subject.act1No) >= 2 && scoresComplete(subject.act1No, subject.act1Scores);
+    return entered(subject.test1) &&
+      Number(subject.act1No) >= 1 && scoresComplete(subject.act1No, subject.act1Scores) &&
+      Number(subject.act2No) >= 1 && scoresComplete(subject.act2No, subject.act2Scores);
   }
 
   const weights = getCourseWeights(courseType);
@@ -448,7 +450,7 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
           </div>
 
           <p className="text-xs text-slate-500">
-            Formula: GPA = Σ (course credits × grade points) ÷ total credits. Total Semester {selectedSemester} credits: {totalCredits}.
+            Total Semester {selectedSemester} credits: {totalCredits}.
           </p>
         </>
       )}

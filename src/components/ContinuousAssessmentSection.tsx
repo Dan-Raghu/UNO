@@ -95,7 +95,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
         {/* Subtotal without enclosing rectangular border box */}
         <div className="flex items-baseline gap-2 self-start sm:self-auto text-white">
           <span className="text-xs uppercase font-bold tracking-wider text-slate-200">
-            MARKS:
+            MARKS CONTRIBUTED:
           </span>
           <span className="text-lg font-black tabular-nums">
             {subtotal.toFixed(2)}{' '}
@@ -216,7 +216,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                 htmlFor={`test-scored-${number}`}
                 className="block text-xs font-bold text-[#172554] uppercase tracking-wider mb-1.5"
               >
-                {isTwoTestCourse ? `Marks Scored in ${testDisplayName}:` : 'Marks Scored in Test:'}
+                Marks Scored:
               </label>
               <div className="relative">
                 <input
@@ -246,7 +246,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
           <div className="mt-4 pt-1">
             <div className="flex items-baseline justify-between text-[#172554]">
               <span className="text-xs font-bold uppercase tracking-wider">
-                MARKS:
+                MARKS CONTRIBUTED:
               </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-black tabular-nums">
