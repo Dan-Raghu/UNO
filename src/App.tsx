@@ -525,6 +525,20 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     calculationRevisionRef.current += 1;
     const existing = findSubjectForCourse(subjects, course);
     if (existing) {
+      if (course.courseType === 'heritage-course') {
+        setSubjects((previous) => previous.map((subject) => {
+          if (subject.id !== existing.id) return subject;
+          const act1Count = Math.max(1, Number(subject.act1No) || 0);
+          const act2Count = Math.max(1, Number(subject.act2No) || 0);
+          return {
+            ...subject,
+            act1No: act1Count,
+            act1Scores: syncScoresArray(subject.act1Scores, act1Count),
+            act2No: act2Count,
+            act2Scores: syncScoresArray(subject.act2Scores, act2Count),
+          };
+        }));
+      }
       setCurrentSubjectId(existing.id);
     } else {
       const newSubject: SubjectData = {
@@ -534,6 +548,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         code: course.code,
         courseType: course.courseType,
         ...(course.courseType === 'universal-human-values'
+          ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
+          : {}),
+        ...(course.courseType === 'heritage-course'
           ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
           : {}),
         ...(course.courseType === 'self-learning' ? { selfLearningPassMark: 50 } : {}),
@@ -568,6 +585,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
       name: currentSubject.name,
       code: currentSubject.code,
       courseType: currentSubject.courseType,
+      ...(getCourseType(currentSubject) === 'heritage-course'
+        ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
+        : {}),
     });
   };
 
@@ -1237,6 +1257,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                     actPoints={breakdown.act1_p}
                     actWeight={breakdown.actWeight}
                     actStartIndex={1}
+                    minimumActivityCount={currentCourseType === 'heritage-course' ? 1 : 0}
+                    maximumActivityCount={currentCourseType === 'heritage-course' ? 1 : 20}
+                    activityTitle={currentCourseType === 'heritage-course' ? 'Activities' : undefined}
+                    activityScoreLabel={currentCourseType === 'heritage-course' ? 'Activity' : undefined}
                     labNo={displayedSubject.lab1No}
                     onLabNoChange={(val) => updateCurrentSubject({ lab1No: val })}
                     labScores={displayedSubject.lab1Scores}
@@ -1270,6 +1294,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   actPoints={breakdown.act2_p}
                   actWeight={breakdown.actWeight}
                   actStartIndex={(Number(displayedSubject.act1No) || 0) + 1}
+                  minimumActivityCount={currentCourseType === 'heritage-course' ? 1 : 0}
+                  maximumActivityCount={currentCourseType === 'heritage-course' ? 1 : 20}
+                  activityTitle={currentCourseType === 'heritage-course' ? 'Activities' : undefined}
+                  activityScoreLabel={currentCourseType === 'heritage-course' ? 'Activity' : undefined}
                   labNo={displayedSubject.lab2No}
                   onLabNoChange={(val) => updateCurrentSubject({ lab2No: val })}
                   labScores={displayedSubject.lab2Scores}

@@ -162,12 +162,12 @@ Course: ${subject.name || 'Course'} - ${breakdown.courseTypeLabel}
 ============================================================
 ${isIndustryOrientedTests || isStandardsCourse || isAuditCourse || isHeritageCourse ? assessmentOneName : 'CONTINUOUS ASSESSMENT 1'}
 - ${assessmentOneName}: Scored ${subject.test1 || 0}/${test1MaxNum} | Contributed: ${breakdown.test1_p.toFixed(2)} / ${testWeight}
-${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act1Sum}/${act1Count * 10} | Contributed: ${breakdown.act1_p.toFixed(2)} / ${actWeight}\n` : ''}
+${actWeight > 0 ? `- ${isSelfDevelopment || isHeritageCourse ? 'Activities' : 'Assignments'}: Scored ${act1Sum}/${act1Count * 10} | Contributed: ${breakdown.act1_p.toFixed(2)} / ${actWeight}\n` : ''}
 ${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab1Sum}/${lab1Count * 10} | Contributed: ${breakdown.lab1_p.toFixed(2)} / ${labWeight}\n` : ''}CA 1 Subtotal: ${breakdown.ca1_total.toFixed(2)} / ${caMax.toFixed(2)}
 
 ${isIndustryOrientedTests || isStandardsCourse || isAuditCourse || isHeritageCourse ? assessmentTwoName : 'CONTINUOUS ASSESSMENT 2'}
 - ${assessmentTwoName}: Scored ${subject.test2 || 0}/${test2MaxNum} | Contributed: ${breakdown.test2_p.toFixed(2)} / ${testWeight}
-${actWeight > 0 ? `- ${isSelfDevelopment ? 'Activities' : 'Assignments'}: Scored ${act2Sum}/${act2Count * 10} | Contributed: ${breakdown.act2_p.toFixed(2)} / ${actWeight}\n` : ''}
+${actWeight > 0 ? `- ${isSelfDevelopment || isHeritageCourse ? 'Activities' : 'Assignments'}: Scored ${act2Sum}/${act2Count * 10} | Contributed: ${breakdown.act2_p.toFixed(2)} / ${actWeight}\n` : ''}
 ${hasLab ? `- ${isSelfDevelopment ? 'Lab' : 'Lab Practicals'}: Scored ${lab2Sum}/${lab2Count * 10} | Contributed: ${breakdown.lab2_p.toFixed(2)} / ${labWeight}\n` : ''}CA 2 Subtotal: ${breakdown.ca2_total.toFixed(2)} / ${caMax.toFixed(2)}
 
 INTERNAL ASSESSMENT TOTAL: ${breakdown.internal_total.toFixed(2)} / ${internalMax.toFixed(2)}
@@ -392,7 +392,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Assignments 1 */}
             {actWeight > 0 && <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                {isSelfDevelopment ? 'Activities' : 'Assignments'}
+                {isSelfDevelopment || isHeritageCourse ? 'Activity 1' : 'Assignments'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{actWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -424,7 +424,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 1 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                {isIndustryOrientedTests ? 'Mid Term Test Total' : isStandardsCourse ? 'Standards Test I Total' : isAuditCourse ? 'Audit Test I Total' : isHeritageCourse ? 'Heritage Test I Total' : 'CA 1 Subtotal'}
+                {isIndustryOrientedTests ? 'Mid Term Test Total' : isStandardsCourse ? 'Standards Test I Total' : isAuditCourse ? 'Audit Test I Total' : isHeritageCourse ? 'Heritage Assessment I Total' : 'CA 1 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">
@@ -462,7 +462,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* Assignments 2 */}
             {actWeight > 0 && <tr className="hover:bg-slate-50 transition-colors">
               <td className="py-2 px-3 sm:px-4 font-bold text-[#172554]">
-                {isSelfDevelopment ? 'Activities' : 'Assignments'}
+                {isSelfDevelopment || isHeritageCourse ? 'Activity 2' : 'Assignments'}
               </td>
               <td className="py-2 px-2 text-center font-bold text-[#172554]">{actWeight}%</td>
               <td className="py-2 px-3 text-right font-bold text-[#172554] tabular-nums whitespace-nowrap">
@@ -494,7 +494,7 @@ FINAL GRADE: Grade ${breakdown.grade.letter} - ${breakdown.grade.label} | Grade 
             {/* CA 2 Subtotal */}
             <tr className="bg-slate-50 font-bold border-b border-[#172554]">
               <td colSpan={2} className="py-2 px-3 sm:px-4 font-black text-[#172554] uppercase text-[11px] sm:text-xs">
-                {isIndustryOrientedTests ? 'End Course Test Total' : isStandardsCourse ? 'Standards Test II Total' : isAuditCourse ? 'Audit Test II Total' : isHeritageCourse ? 'Heritage Test II Total' : 'CA 2 Subtotal'}
+                {isIndustryOrientedTests ? 'End Course Test Total' : isStandardsCourse ? 'Standards Test II Total' : isAuditCourse ? 'Audit Test II Total' : isHeritageCourse ? 'Heritage Assessment II Total' : 'CA 2 Subtotal'}
               </td>
               <td className="py-2 px-3 text-right text-[#172554] font-bold text-[11px]">—</td>
               <td className="py-2 px-3 sm:px-4 text-right font-black text-[#172554] tabular-nums whitespace-nowrap">

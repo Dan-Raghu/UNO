@@ -15,6 +15,8 @@ interface DynamicScoreBoxesProps {
   caName: string;
   estimatedMarks?: boolean;
   minimumCount?: number;
+  maximumCount?: number;
+  scoreLabel?: string;
 }
 
 export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
@@ -31,6 +33,8 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
   caName,
   estimatedMarks = false,
   minimumCount = 0,
+  maximumCount = 20,
+  scoreLabel,
 }) => {
   const numericCount = Math.max(0, parseInt(String(count), 10) || 0);
 
@@ -59,12 +63,12 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
       return;
     }
     const val = parseInt(raw, 10);
-    const safeVal = isNaN(val) ? minimumCount : Math.max(minimumCount, Math.min(20, val));
+    const safeVal = isNaN(val) ? minimumCount : Math.max(minimumCount, Math.min(maximumCount, val));
     onCountChange(safeVal);
   };
 
   const incrementCount = () => {
-    if (numericCount < 20) {
+    if (numericCount < maximumCount) {
       onCountChange(numericCount < minimumCount ? minimumCount : numericCount + 1);
     }
   };
@@ -123,7 +127,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                 id={`count-${category}-${caName}`}
                 type="number"
                 min={minimumCount}
-                max={20}
+                max={maximumCount}
                 value={count === '' || count === undefined ? '' : count}
                 placeholder="0"
                 disabled={estimatedMarks}
@@ -133,7 +137,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
               <button
                 type="button"
                 onClick={incrementCount}
-                disabled={estimatedMarks || numericCount >= 20}
+                disabled={estimatedMarks || numericCount >= maximumCount}
                 aria-label="Increase number"
                 className="p-1.5 text-[#172554] hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-l border-slate-300"
               >
@@ -164,7 +168,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                     className="p-3 flex flex-col items-center justify-center min-w-[112px] hover:bg-slate-50 transition-colors"
                   >
                     <span className="text-[11px] font-bold text-[#172554] mb-1.5 whitespace-nowrap">
-                      {category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`}
+                      {scoreLabel ? `${scoreLabel} ${displayIndex}` : category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`}
                     </span>
 
                     <div className="flex items-center gap-1">
