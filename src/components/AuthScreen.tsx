@@ -6,12 +6,15 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
 } from 'firebase/auth';
-import { AlertCircle, BookOpen, LoaderCircle } from 'lucide-react';
+import { AlertCircle, BookOpen, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth } from '../firebase';
+import { ThemeToggle, type AppTheme } from './ThemeToggle';
 
 interface AuthScreenProps {
   configurationError?: string;
   onContinueAsGuest: () => void;
+  theme: AppTheme;
+  onToggleTheme: () => void;
 }
 
 type AuthMode = 'login' | 'signup' | 'reset';
@@ -51,10 +54,11 @@ function friendlyAuthError(error: unknown, provider: 'email' | 'google' = 'email
   }
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onContinueAsGuest }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onContinueAsGuest, theme, onToggleTheme }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -111,14 +115,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onCo
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center px-4 py-10 font-sans">
       <section className="w-full max-w-md bg-white border border-slate-300 shadow-sm">
-        <div className="bg-[#172554] text-white px-6 py-5 flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center bg-white text-[#172554] font-black text-xs">
-            CA
+        <div className="bg-[#172554] text-white px-5 py-5 flex items-center justify-between gap-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-9 h-9 shrink-0 flex items-center justify-center bg-white text-[#172554] font-black text-xs">
+              CC
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase font-bold tracking-widest text-blue-100">CALCREDIT</p>
+              <h1 className="text-base font-black sm:text-lg">Academic Marks Calculator</h1>
+            </div>
           </div>
-          <div>
-            <p className="text-[11px] uppercase font-bold tracking-widest text-blue-100">Project UNO</p>
-            <h1 className="text-lg font-black">Academic Marks Calculator</h1>
-          </div>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} className="border-white/30 bg-white/10 text-white hover:bg-white/20" />
         </div>
 
         <div className="p-6 sm:p-8">
@@ -159,19 +166,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onCo
               </label>
 
               {mode !== 'reset' && (
-                <label className="block">
-                  <span className="block text-xs font-bold uppercase tracking-wide text-[#172554] mb-1.5">Password</span>
-                  <input
-                    type="password"
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                    required
-                    minLength={mode === 'signup' ? 6 : undefined}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-[#172554]"
-                    placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
-                  />
-                </label>
+                <div className="block">
+                  <label htmlFor="auth-password" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#172554]">Password</label>
+                  <div className="relative">
+                    <input
+                      id="auth-password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      required
+                      minLength={mode === 'signup' ? 6 : undefined}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="w-full border border-slate-300 bg-white px-3 py-3 pr-11 text-sm focus:border-[#172554]"
+                      placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center text-slate-500 hover:text-[#172554] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554]"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </button>
+                  </div>
+                </div>
               )}
 
               <button

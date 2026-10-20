@@ -173,7 +173,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                       const val = parseFloat(raw);
                       onTestMaxChange(isNaN(val) ? '' : Math.max(1, val));
                     }}
-                    className="w-full px-3 py-2 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm"
+                    className="w-full min-w-0 px-3 py-3 pr-24 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm"
                   />
                   <span className="absolute right-3 top-2.5 text-[11px] font-semibold text-slate-500">
                     Max Scale
@@ -233,7 +233,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
                       raw === '' ? '' : Math.max(0, Math.min(currentMax, parseFloat(raw) || 0))
                     );
                   }}
-                  className="w-full px-3 py-2 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm"
+                  className="w-full min-w-0 px-3 py-3 pr-16 text-base font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] placeholder:text-slate-400 placeholder:font-normal placeholder:text-sm"
                 />
                 <span className="absolute right-3 top-2.5 text-xs font-bold text-[#1e3a8a]">
                   / {currentMax}

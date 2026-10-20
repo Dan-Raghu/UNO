@@ -55,6 +55,13 @@ export interface SubjectData {
   lab2Scores: (number | string)[];
 }
 
+export interface AcademicProfileData {
+  studentName: string;
+  rollNumber: string;
+  department: string;
+  degree: string;
+}
+
 export interface ProjectWorkMarks {
   reviewI: number | string;
   reviewII: number | string;
