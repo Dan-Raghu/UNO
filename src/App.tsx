@@ -41,6 +41,7 @@ import { StickyResultSummary } from './components/StickyResultSummary';
 import { ThemeToggle, type AppTheme } from './components/ThemeToggle';
 import { GPA_COURSES } from './gpaCourses';
 import { AuthScreen } from './components/AuthScreen';
+import { FeedbackHub } from './components/FeedbackHub';
 import { auth, firebaseConfigReady } from './firebase';
 import {
   importLegacySubjects,
@@ -65,6 +66,7 @@ import {
 
 const LEGACY_STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
 const THEME_STORAGE_KEY = 'calcredit_theme';
+const GOOGLE_ACCOUNT_SELECTION_KEY = 'calcredit_choose_google_account_after_signout';
 
 function getInitialTheme(): AppTheme {
   try {
@@ -230,6 +232,13 @@ export default function App() {
   const [theme, setTheme] = useState<AppTheme>(getInitialTheme);
   const [authResolved, setAuthResolved] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [forceGoogleAccountSelection, setForceGoogleAccountSelection] = useState(() => {
+    try {
+      return window.localStorage.getItem(GOOGLE_ACCOUNT_SELECTION_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState('');
 
@@ -255,6 +264,14 @@ export default function App() {
       auth,
       (nextUser) => {
         setUser(nextUser);
+        if (nextUser) {
+          setForceGoogleAccountSelection(false);
+          try {
+            window.localStorage.removeItem(GOOGLE_ACCOUNT_SELECTION_KEY);
+          } catch (error) {
+            console.error('Unable to clear Google account selection preference:', error);
+          }
+        }
         setAuthResolved(true);
         setAuthError('');
         setSignOutPending(false);
@@ -271,10 +288,22 @@ export default function App() {
     if (!auth || signOutPending) return;
     setSignOutPending(true);
     setSignOutError('');
+    setForceGoogleAccountSelection(true);
+    try {
+      window.localStorage.setItem(GOOGLE_ACCOUNT_SELECTION_KEY, 'true');
+    } catch (error) {
+      console.error('Unable to save Google account selection preference:', error);
+    }
     try {
       await signOut(auth);
     } catch (error) {
       console.error('Unable to sign out:', error);
+      setForceGoogleAccountSelection(false);
+      try {
+        window.localStorage.removeItem(GOOGLE_ACCOUNT_SELECTION_KEY);
+      } catch (storageError) {
+        console.error('Unable to clear Google account selection preference:', storageError);
+      }
       setSignOutError('Could not log out. Please try again.');
       setSignOutPending(false);
     }
@@ -307,6 +336,7 @@ export default function App() {
     return (
       <AuthScreen
         configurationError="Firebase is not configured. Account sign-in is unavailable, but you can continue as a guest."
+        forceGoogleAccountSelection={forceGoogleAccountSelection}
         onContinueAsGuest={handleContinueAsGuest}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -329,7 +359,7 @@ export default function App() {
     );
   }
 
-  if (!user) return <AuthScreen onContinueAsGuest={handleContinueAsGuest} theme={theme} onToggleTheme={toggleTheme} />;
+  if (!user) return <AuthScreen forceGoogleAccountSelection={forceGoogleAccountSelection} onContinueAsGuest={handleContinueAsGuest} theme={theme} onToggleTheme={toggleTheme} />;
 
   return (
     <AuthenticatedApp
@@ -1236,10 +1266,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         )}
 
         {showFeedbackHub ? (
-          <section className="mx-auto my-6 max-w-2xl border border-slate-300 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="feedback-hub-heading">
-            <h1 id="feedback-hub-heading" className="text-xl font-black text-[#172554]">Feedback Hub</h1>
-            <p className="mt-2 text-sm text-slate-600">Feedback submission is not available yet.</p>
-          </section>
+          <FeedbackHub
+            user={user}
+            guestMode={guestMode}
+          />
         ) : null}
 
         {!showFeedbackHub && activeTab === 'calculator' && selectedSemester === null && (

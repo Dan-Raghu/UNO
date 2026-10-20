@@ -12,6 +12,7 @@ import { ThemeToggle, type AppTheme } from './ThemeToggle';
 
 interface AuthScreenProps {
   configurationError?: string;
+  forceGoogleAccountSelection?: boolean;
   onContinueAsGuest: () => void;
   theme: AppTheme;
   onToggleTheme: () => void;
@@ -54,7 +55,7 @@ function friendlyAuthError(error: unknown, provider: 'email' | 'google' = 'email
   }
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onContinueAsGuest, theme, onToggleTheme }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, forceGoogleAccountSelection = false, onContinueAsGuest, theme, onToggleTheme }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,7 +93,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ configurationError, onCo
     setNotice('');
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      if (forceGoogleAccountSelection) {
+        provider.setCustomParameters({ prompt: 'select_account' });
+      }
       await signInWithPopup(auth, provider);
     } catch (authError) {
       const code = typeof authError === 'object' && authError !== null && 'code' in authError
