@@ -11,10 +11,6 @@
 }
 
 @layer base {
-  *, *::before, *::after {
-    border-radius: 0 !important;
-  }
-
   body, input, button, select, textarea {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     color: #0f172a;
@@ -142,7 +138,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 [data-theme="dark"] .border-slate-300,
 [data-theme="dark"] .border-slate-400 {
-  border-color: #3b4a60;
+  border-color: #475569;
 }
 
 [data-theme="dark"] .border-blue-200 {
@@ -273,4 +269,35 @@ input[type="number"]::-webkit-outer-spin-button {
 @keyframes profile-backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@media (max-width: 639px) {
+  .results-summary [class*="overflow-x-auto"] {
+    overflow-x: visible;
+  }
+
+  .results-summary table {
+    width: 100%;
+    min-width: 0 !important;
+    table-layout: fixed;
+  }
+
+  .results-summary th,
+  .results-summary td {
+    overflow-wrap: anywhere;
+    padding: 0.45rem 0.35rem !important;
+    font-size: 0.68rem;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

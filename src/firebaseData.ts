@@ -91,14 +91,13 @@ export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData>
     .sort((a, b) => b.createdAtMs - a.createdAtMs);
   const profileData = profileSnapshot.data();
   const profile = profileData &&
-    ['studentName', 'rollNumber', 'department', 'degree'].every((field) =>
+    ['studentName', 'rollNumber', 'department'].every((field) =>
       typeof profileData[field] === 'string' && profileData[field].trim()
     )
     ? {
         studentName: (profileData.studentName as string).trim(),
         rollNumber: (profileData.rollNumber as string).trim(),
-        department: (profileData.department as string).trim(),
-        degree: (profileData.degree as string).trim(),
+        department: 'CSE',
       }
     : null;
 

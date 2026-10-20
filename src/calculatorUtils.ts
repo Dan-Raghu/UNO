@@ -143,7 +143,7 @@ const COURSE_WEIGHTS: Record<CourseType, Omit<CourseWeights, 'courseType' | 'caM
   'audit-course': { courseTypeLabel: 'Audit Course — Two Equal Tests, No ESE', testWeight: 50, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
   'self-learning': { courseTypeLabel: 'Self-Learning Course — External Result', testWeight: 0, actWeight: 0, labWeight: 0, eseTheoryWeight: 0, eseLabWeight: 0 },
   'laboratory-course': { courseTypeLabel: 'Laboratory Course — 60% CA, 40% ESE', testWeight: 15, actWeight: 0, labWeight: 45, eseTheoryWeight: 0, eseLabWeight: 40 },
-  'heritage-course': { courseTypeLabel: 'Heritage Course — Two Tests 40%, ESE 60%', testWeight: 20, actWeight: 0, labWeight: 0, eseTheoryWeight: 60, eseLabWeight: 0 },
+  'heritage-course': { courseTypeLabel: 'Heritage of Tamils — Tests 16% + Activities 4% per assessment, ESE 60%', testWeight: 16, actWeight: 4, labWeight: 0, eseTheoryWeight: 60, eseLabWeight: 0 },
 };
 
 export function isCourseType(value: unknown): value is CourseType {

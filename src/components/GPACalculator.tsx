@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, GraduationCap } from 'lucide-react';
 import type { SubjectData } from '../types';
 import type { GpaHistoryEntry } from '../firebaseData';
@@ -15,7 +15,7 @@ const matchesPresetSubject = (subject: SubjectData, course: (typeof PRESET_COURS
   subject.name.trim().toLowerCase() === course.name.trim().toLowerCase();
 
 const findCourseSubject = (subjects: SubjectData[], course: GpaCourse) =>
-  subjects.find((subject) => {
+  [...subjects].reverse().find((subject) => {
     if (course.electiveSlot) {
       return PRESET_COURSES.some((preset) =>
         preset.semester === course.semester &&
@@ -164,23 +164,11 @@ export function isGpaReady(
   calculatedSignatures: Record<string, string> = {}
 ): boolean {
   const semesterCourses = GPA_COURSES.filter((course) => course.semester === selectedSemester);
-  const usedSemesters = new Set<number>();
-
-  for (const subject of subjects) {
-    const semester = getGpaCourseSemester(subject);
-    if (semester !== null) {
-      usedSemesters.add(semester);
-    }
-  }
-
   const selectedSemester8Projects = subjects.filter((subject) =>
+    getGpaCourseSemester(subject) === selectedSemester &&
     ['project', 'project-work'].includes(getCourseType(subject))
   );
   if (selectedSemester === 8 && selectedSemester8Projects.length > 1) return false;
-
-  if (usedSemesters.size > 1) {
-    return false;
-  }
 
   return semesterCourses.every((course) => {
     const subject = findCourseSubject(subjects, course);
@@ -211,25 +199,12 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
   estimatePercentage,
 }) => {
   const [calculatedSubjects, setCalculatedSubjects] = useState<SubjectData[] | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<number>(initialSemester);
+  const selectedSemester = initialSemester;
   const [isSaving, setIsSaving] = useState(false);
   const [calculationError, setCalculationError] = useState('');
-  useEffect(() => {
-    setSelectedSemester(initialSemester);
-  }, [initialSemester]);
-
   const semesterCourses = GPA_COURSES.filter((course) => course.semester === selectedSemester);
   const gpaReady = isGpaReady(subjects, includeEstimates, selectedSemester, calculatedSignatures);
   const hasCalculated = gpaReady && calculatedSubjects === subjects;
-  const mixedSemesterCourses = new Set<number>();
-
-  for (const subject of subjects) {
-    const semester = getGpaCourseSemester(subject);
-    if (semester !== null) {
-      mixedSemesterCourses.add(semester);
-    }
-  }
-
   const rows = semesterCourses.map((course) => {
     const subject = findCourseSubject(subjects, course);
     const complete = Boolean(subject && (
@@ -259,10 +234,8 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
   const gpa = totalCredits ? totalWeightedPoints / totalCredits : 0;
   const completedCourses = rows.filter((row) => row.complete).length;
   const totalSemesterCourses = rows.length;
-  const hasMixedSemesters = mixedSemesterCourses.size > 1;
-
   const handleCalculateGpa = async () => {
-    if (!gpaReady || hasMixedSemesters || isSaving) return;
+    if (!gpaReady || isSaving) return;
     setIsSaving(true);
     setCalculationError('');
     try {
@@ -312,21 +285,9 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 border border-blue-200 bg-blue-50 p-4 sm:p-5" role="status">
-          <p className="font-bold text-[#172554]">Enter all marks for the selected semester before calculating GPA.</p>
-          <select
-            value={selectedSemester}
-            onChange={(event) => setSelectedSemester(Number(event.target.value))}
-            className="border border-slate-300 bg-white px-2.5 py-2 text-sm font-bold text-[#172554] focus:border-[#172554]"
-            aria-label="Select semester for GPA"
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
-              <option key={semester} value={semester}>
-                Semester {semester}
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="mt-5 border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-[#172554]" role="status">
+          Enter all marks for Semester {selectedSemester} before calculating GPA. Change semesters using the selector in the header.
+        </p>
           <p className="text-xs font-bold text-[#172554] mt-3" aria-live="polite">
             {completedCourses} of {totalSemesterCourses} courses complete
           </p>
@@ -368,18 +329,16 @@ export const GPACalculator: React.FC<GPACalculatorProps> = ({
 
         <div className="border-t border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-slate-600">
-            {hasMixedSemesters
-              ? 'GPA cannot be calculated across multiple semesters. Select only one semester at a time.'
-              : gpaReady
-                ? includeEstimates && rows.some((row) => row.usedEstimate)
-                  ? `Lab/activity marks calculated at ${estimatePercentage}%.`
-                  : `All ${totalSemesterCourses} courses in Semester ${selectedSemester} are complete. You can calculate your GPA.`
-                : `Complete the missing marks in Semester ${selectedSemester} before calculating.`}
+            {gpaReady
+              ? includeEstimates && rows.some((row) => row.usedEstimate)
+                ? `Lab/activity marks calculated at ${estimatePercentage}%.`
+                : `All ${totalSemesterCourses} courses in Semester ${selectedSemester} are complete. You can calculate your GPA.`
+              : `Complete the missing marks in Semester ${selectedSemester} before calculating.`}
           </p>
           <button
             type="button"
             onClick={handleCalculateGpa}
-            disabled={!gpaReady || hasMixedSemesters || isSaving}
+            disabled={!gpaReady || isSaving}
             className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <GraduationCap className="w-4 h-4" aria-hidden="true" />

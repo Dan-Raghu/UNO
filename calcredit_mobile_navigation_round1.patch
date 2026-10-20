@@ -1,0 +1,360 @@
+diff --git a/src/App.tsx b/src/App.tsx
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -25,2 +25,4 @@
+ } from './components/SemesterCourseDashboard';
++import { MobileBottomNav } from './components/MobileBottomNav';
++import { MobileCoursesSheet } from './components/MobileCoursesSheet';
+ import { ProjectWorkAssessmentSection } from './components/ProjectWorkAssessmentSection';
+@@ -53,4 +53,5 @@
+ import {
+   Calculator,
++  BookOpen,
+   TableProperties,
+   ArrowDown,
+@@ -301,3 +302,4 @@
+   const [selectedSemester, setSelectedSemester] = useState<SemesterNumber | null>(null);
+   const [isEditorOpen, setIsEditorOpen] = useState(false);
+   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
++  const [isCoursesSheetOpen, setIsCoursesSheetOpen] = useState(false);
+@@ -433,5 +434,13 @@
+   const currentSubject = useMemo(() => {
+     return subjects.find((s) => s.id === currentSubjectId) || subjects[0] || DEFAULT_SUBJECT;
+   }, [subjects, currentSubjectId]);
++  const profileLabel = user?.displayName?.trim() || user?.email?.split('@')[0] || (guestMode ? 'Guest' : 'Student');
++  const profileInitials = profileLabel
++    .split(/[\s._-]+/)
++    .filter(Boolean)
++    .slice(0, 2)
++    .map((part) => part[0])
++    .join('')
++    .toUpperCase() || 'S';
+ 
+   const hasSubjectSelected = Boolean(currentSubject.name && currentSubject.name.trim().length > 0);
+@@ -510,2 +517,3 @@
+   const handleSemesterChange = (value: string) => {
++    setIsCoursesSheetOpen(false);
+     const semester = Number(value) as SemesterNumber;
+@@ -518,2 +526,3 @@
+   const handleOpenPresetCourse = (course: PresetCourse) => {
++    setIsCoursesSheetOpen(false);
+     calculationRevisionRef.current += 1;
+@@ -543,2 +552,3 @@
+   const handleOpenOtherCourse = (subject: SubjectData) => {
++    setIsCoursesSheetOpen(false);
+     setCurrentSubjectId(subject.id);
+@@ -552,2 +562,3 @@
+   const handleOpenElectivePicker = (slot: string) => {
++    setIsCoursesSheetOpen(false);
+     setDialogPurpose('elective');
+@@ -818,3 +829,39 @@
+       {/* Top Bar */}
+       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
+-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-12 sm:h-14 flex items-center justify-between gap-2 sm:gap-4">
++        <div className="mx-auto max-w-7xl px-3 py-2 lg:hidden">
++          <div className="flex items-center justify-between gap-3">
++            <a href="#" className="flex min-w-0 shrink-0 items-center gap-2 text-base font-black tracking-tight text-[#172554]">
++              <span className="flex h-8 w-8 items-center justify-center bg-[#172554] text-xs font-black text-white">CC</span>
++              <span className="truncate uppercase">CALCREDIT</span>
++              <span className="flex h-4 items-center bg-[#172554] px-1 text-[9px] font-bold text-white">CS</span>
++            </a>
++            <div className="flex min-w-0 items-center gap-2">
++              <span className="max-w-24 truncate text-right text-[11px] font-medium text-slate-600" title={profileLabel}>{profileLabel}</span>
++              <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#172554] text-xs font-bold text-white" aria-label={`Profile: ${profileLabel}`}>
++                {profileInitials}
++              </span>
++            </div>
++          </div>
++          <div className="mt-2 flex items-center justify-between gap-3">
++            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-[#172554]">
++              <span>Semester</span>
++              <span className="relative">
++                <select
++                  aria-label="Choose semester"
++                  value={selectedSemester ?? ''}
++                  onChange={(event) => handleSemesterChange(event.currentTarget.value)}
++                  className="min-w-28 appearance-none border border-slate-300 bg-white py-1.5 pl-2 pr-7 text-xs font-bold text-[#172554] focus:border-[#172554] focus:outline-2 focus:outline-[#172554]"
++                >
++                  <option value="">Choose…</option>
++                  {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
++                    <option key={semester} value={semester}>Semester {semester}</option>
++                  ))}
++                </select>
++                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" aria-hidden="true" />
++              </span>
++            </label>
++            <span className="text-[10px] text-slate-500">{guestMode ? 'Guest session' : 'Academic workspace'}</span>
++          </div>
++        </div>
++
++        <div className="hidden lg:flex max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-12 sm:h-14 items-center justify-between gap-2 sm:gap-4">
+@@ -835,1 +892,1 @@
+-          {activeTab === 'calculator' && <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
++          {activeTab === 'calculator' && hasSubjectSelected && hasCalculatedCurrentSubject && <div className="hidden xl:flex min-w-0 items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
+@@ -938,18 +995,1 @@
+-        <div className="grid grid-cols-3 border-t border-slate-200 bg-white md:hidden">
+-          {([
+-            ['calculator', 'Calc'],
+-            ['grades', 'Grades'],
+-            ['gpa', 'GPA'],
+-          ] as const).map(([tab, label], index) => (
+-            <button
+-              key={tab}
+-              type="button"
+-              onClick={() => setActiveTab(tab)}
+-              aria-pressed={activeTab === tab}
+-              className={`min-h-11 px-2 text-xs font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${index > 0 ? 'border-l border-slate-200' : ''} ${activeTab === tab ? 'bg-[#172554] text-white' : 'text-[#172554] hover:bg-slate-50'}`}
+-            >
+-              {label}
+-            </button>
+-          ))}
+-        </div>
+       </header>
+@@ -977,1 +1016,1 @@
+-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
++      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-24 lg:pb-8">
+@@ -1010,2 +1049,2 @@
+-            <div className="min-w-0">
++            <div className="hidden min-w-0 lg:block">
+               <SemesterCourseDashboard
+@@ -1022,4 +1061,15 @@
+               />
+             </div>
++
++            {!isEditorOpen && (
++              <section className="border border-slate-300 bg-white px-4 py-6 text-center shadow-sm lg:hidden">
++                <BookOpen className="mx-auto mb-3 h-6 w-6 text-[#172554]" aria-hidden="true" />
++                <h2 className="text-base font-bold text-[#172554]">Choose a course</h2>
++                <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-slate-600">Open Courses from the bottom navigation to select a course and start entering marks.</p>
++                <button type="button" onClick={() => setIsCoursesSheetOpen(true)} className="mt-4 min-h-10 bg-[#172554] px-4 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#1e3a8a]">
++                  Browse courses
++                </button>
++              </section>
++            )}
+ 
+             {isEditorOpen && hasSubjectSelected && (
+@@ -1435,3 +1481,29 @@
+ </main>
++
++      <MobileBottomNav
++        activeTab={activeTab}
++        coursesOpen={isCoursesSheetOpen}
++        guestMode={guestMode}
++        logoutPending={signOutPending}
++        onCalculator={() => { setIsCoursesSheetOpen(false); setActiveTab('calculator'); }}
++        onCourses={() => setIsCoursesSheetOpen(true)}
++        onGrades={() => { setIsCoursesSheetOpen(false); setActiveTab('grades'); }}
++        onGpa={() => { setIsCoursesSheetOpen(false); setActiveTab('gpa'); }}
++        onLogout={() => { if (user) void onSignOut(); else onExitGuest(); }}
++      />
++
++      <MobileCoursesSheet
++        isOpen={isCoursesSheetOpen}
++        semester={selectedSemester}
++        courses={semesterCourseRows}
++        electiveSlots={semesterElectiveRows}
++        otherCourses={otherCourseRows}
++        selectedSubjectId={isEditorOpen ? currentSubjectId : ''}
++        onClose={() => setIsCoursesSheetOpen(false)}
++        onSelectCourse={handleOpenPresetCourse}
++        onSelectElective={handleOpenElectivePicker}
++        onSelectOtherCourse={handleOpenOtherCourse}
++        onAddCourse={() => { setIsCoursesSheetOpen(false); setDialogPurpose('course'); setDialogElectiveSlot(null); setIsDialogOpen(true); }}
++      />
+ 
+       {/* Subject Selection Modal Dialog Box */}
+diff --git a/src/components/MobileBottomNav.tsx b/src/components/MobileBottomNav.tsx
+new file mode 100644
+--- /dev/null
++++ b/src/components/MobileBottomNav.tsx
+@@ -0,0 +1,56 @@
++import React from 'react';
++import { Calculator, BookOpen, GraduationCap, TableProperties, LogOut, LoaderCircle } from 'lucide-react';
++
++type MainTab = 'calculator' | 'grades' | 'gpa';
++
++interface MobileBottomNavProps {
++  activeTab: MainTab;
++  coursesOpen: boolean;
++  guestMode: boolean;
++  logoutPending: boolean;
++  onCalculator: () => void;
++  onCourses: () => void;
++  onGrades: () => void;
++  onGpa: () => void;
++  onLogout: () => void;
++}
++
++const itemClass = (active: boolean) =>
++  `flex min-h-16 flex-col items-center justify-center gap-1 border-t-2 px-1 text-[9px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
++    active ? 'border-t-[#172554] text-[#172554]' : 'border-t-transparent text-slate-500 hover:text-[#172554]'
++  }`;
++
++export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
++  activeTab,
++  coursesOpen,
++  guestMode,
++  logoutPending,
++  onCalculator,
++  onCourses,
++  onGrades,
++  onGpa,
++  onLogout,
++}) => (
++  <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_12px_rgba(15,23,42,0.04)] lg:hidden">
++    <button type="button" onClick={onCalculator} aria-pressed={activeTab === 'calculator' && !coursesOpen} className={itemClass(activeTab === 'calculator' && !coursesOpen)}>
++      <Calculator className="h-4 w-4" aria-hidden="true" />
++      <span>Calculator</span>
++    </button>
++    <button type="button" onClick={onCourses} aria-pressed={coursesOpen} className={itemClass(coursesOpen)}>
++      <BookOpen className="h-4 w-4" aria-hidden="true" />
++      <span>Courses</span>
++    </button>
++    <button type="button" onClick={onGpa} aria-pressed={activeTab === 'gpa' && !coursesOpen} className={itemClass(activeTab === 'gpa' && !coursesOpen)}>
++      <GraduationCap className="h-4 w-4" aria-hidden="true" />
++      <span>GPA Hub</span>
++    </button>
++    <button type="button" onClick={onGrades} aria-pressed={activeTab === 'grades' && !coursesOpen} className={itemClass(activeTab === 'grades' && !coursesOpen)}>
++      <TableProperties className="h-4 w-4" aria-hidden="true" />
++      <span>Grading</span>
++    </button>
++    <button type="button" onClick={onLogout} disabled={logoutPending} aria-label={guestMode ? 'Exit guest session' : 'Log out'} className={itemClass(false)}>
++      {logoutPending ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
++      <span>{logoutPending ? 'Signing out' : 'Logout'}</span>
++    </button>
++  </nav>
++);
+diff --git a/src/components/MobileCoursesSheet.tsx b/src/components/MobileCoursesSheet.tsx
+new file mode 100644
+--- /dev/null
++++ b/src/components/MobileCoursesSheet.tsx
+@@ -0,0 +1,122 @@
++import React from 'react';
++import { CheckCircle2, Circle, Pencil, Plus, X } from 'lucide-react';
++import type { SubjectData } from '../types';
++import type { PresetCourse } from './SubjectSelectionDialog';
++import type { CourseProgress, SemesterCourseRow, SemesterElectiveRow } from './SemesterCourseDashboard';
++
++interface MobileCoursesSheetProps {
++  isOpen: boolean;
++  semester: number | null;
++  courses: SemesterCourseRow[];
++  electiveSlots: SemesterElectiveRow[];
++  otherCourses: Array<{ subject: SubjectData; progress: CourseProgress }>;
++  selectedSubjectId: string;
++  onClose: () => void;
++  onSelectCourse: (course: PresetCourse) => void;
++  onSelectElective: (slot: string) => void;
++  onSelectOtherCourse: (subject: SubjectData) => void;
++  onAddCourse: () => void;
++}
++
++function ProgressLabel({ progress }: { progress: CourseProgress }) {
++  if (progress === 'Calculated') {
++    return <span className="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-semibold text-emerald-800"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Calculated</span>;
++  }
++  if (progress === 'Marks entered') {
++    return <span className="inline-flex items-center gap-1 border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-semibold text-blue-800"><Pencil className="h-3 w-3" aria-hidden="true" />Marks entered</span>;
++  }
++  return <span className="inline-flex items-center gap-1 border border-slate-200 bg-slate-50 px-2 py-1 text-[9px] font-medium text-slate-600"><Circle className="h-2.5 w-2.5" aria-hidden="true" />Pending</span>;
++}
++
++export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
++  isOpen,
++  semester,
++  courses,
++  electiveSlots,
++  otherCourses,
++  selectedSubjectId,
++  onClose,
++  onSelectCourse,
++  onSelectElective,
++  onSelectOtherCourse,
++  onAddCourse,
++}) => {
++  if (!isOpen) return null;
++
++  const totalCourses = courses.length + electiveSlots.length + otherCourses.length;
++
++  return (
++    <div className="fixed inset-0 z-50 bg-[#172554]/75 lg:hidden" role="presentation" onClick={onClose}>
++      <section
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="mobile-courses-heading"
++        className="absolute inset-x-0 bottom-0 flex max-h-[82vh] flex-col border-t border-slate-300 bg-white shadow-2xl lg:hidden"
++        onClick={(event) => event.stopPropagation()}
++      >
++        <header className="shrink-0 border-b border-slate-200 px-4 pb-3 pt-2">
++          <div className="mx-auto mb-3 h-1 w-14 bg-slate-300" aria-hidden="true" />
++          <div className="flex items-start justify-between gap-3">
++            <div>
++              <h2 id="mobile-courses-heading" className="text-lg font-bold text-[#172554]">Courses</h2>
++              <p className="mt-0.5 text-[11px] text-slate-500">{semester === null ? 'Choose a semester' : `Semester ${semester}`}</p>
++            </div>
++            <div className="flex items-center gap-3">
++              <span className="text-xs font-bold text-[#172554]">{totalCourses}</span>
++              <button type="button" onClick={onClose} aria-label="Close courses" className="flex h-8 w-8 items-center justify-center border border-slate-200 text-slate-600 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#172554]">
++                <X className="h-4 w-4" aria-hidden="true" />
++              </button>
++            </div>
++          </div>
++        </header>
++
++        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
++          {semester === null ? (
++            <p className="px-2 py-6 text-center text-xs leading-relaxed text-slate-600">Choose a semester using the selector at the top of the screen to see its courses.</p>
++          ) : (
++            <>
++              {courses.map(({ course, subject, progress }) => (
++                <div key={course.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border px-2.5 py-2 ${subject?.id === selectedSubjectId ? 'border-l-2 border-l-[#172554] border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
++                  <button type="button" onClick={() => onSelectCourse(course)} aria-pressed={subject?.id === selectedSubjectId} className="min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#172554]">
++                    <span className="block break-words text-[11px] font-semibold leading-snug text-[#172554]">{course.name}</span>
++                    <span className="mt-0.5 block text-[9px] text-slate-500">{[course.code, course.type].filter(Boolean).join(' · ')}</span>
++                  </button>
++                  <ProgressLabel progress={progress} />
++                </div>
++              ))}
++
++              {electiveSlots.map(({ slot, course, subject, progress }) => (
++                <div key={slot} className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border px-2.5 py-2 ${subject?.id === selectedSubjectId ? 'border-l-2 border-l-[#172554] border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
++                  <button type="button" onClick={() => course ? onSelectCourse(course) : onSelectElective(slot)} aria-pressed={subject?.id === selectedSubjectId} className="min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#172554]">
++                    <span className="block break-words text-[11px] font-semibold leading-snug text-[#172554]">{course?.name ?? slot}</span>
++                    <span className="mt-0.5 block text-[9px] text-slate-500">{course?.code ?? 'Elective slot'}</span>
++                  </button>
++                  {course && <ProgressLabel progress={progress} />}
++                  {!course && <span className="border border-slate-200 px-2 py-1 text-[9px] text-slate-500">Choose</span>}
++                  {course && <button type="button" onClick={() => onSelectElective(slot)} aria-label={`Change ${slot} option`} className="flex h-7 w-7 items-center justify-center border border-slate-200 text-slate-600 hover:text-[#172554]"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
++                </div>
++              ))}
++
++              {otherCourses.map(({ subject, progress }) => (
++                <div key={subject.id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border px-2.5 py-2 ${subject.id === selectedSubjectId ? 'border-l-2 border-l-[#172554] border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
++                  <button type="button" onClick={() => onSelectOtherCourse(subject)} aria-pressed={subject.id === selectedSubjectId} className="min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#172554]">
++                    <span className="block break-words text-[11px] font-semibold leading-snug text-[#172554]">{subject.name || 'Other course'}</span>
++                    <span className="mt-0.5 block text-[9px] text-slate-500">{subject.code || 'Custom course'}</span>
++                  </button>
++                  <ProgressLabel progress={progress} />
++                </div>
++              ))}
++            </>
++          )}
++        </div>
++
++        <footer className="shrink-0 border-t border-slate-200 bg-white p-3">
++          <button type="button" onClick={onAddCourse} className="inline-flex min-h-11 w-full items-center justify-center gap-2 border border-[#172554] bg-white px-4 py-2 text-xs font-bold text-[#172554] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#172554]">
++            <Plus className="h-4 w-4" aria-hidden="true" />
++            Add Another Course
++          </button>
++        </footer>
++      </section>
++    </div>
++  );
++};
+diff --git a/src/components/AuthScreen.tsx b/src/components/AuthScreen.tsx
+--- a/src/components/AuthScreen.tsx
++++ b/src/components/AuthScreen.tsx
+@@ -240,2 +240,2 @@
+               <p className="text-slate-600">
+-                {mode === 'signup' ? 'Already have an account?' : 'New to Project UNO?'}{' '}
++                {mode === 'signup' ? 'Already have an account?' : 'New to CALCREDIT?'}{' '}

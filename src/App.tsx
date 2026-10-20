@@ -58,7 +58,6 @@ import {
   TableProperties,
   ArrowDown,
   GraduationCap,
-  LogOut,
   LoaderCircle,
   AlertCircle,
   ChevronDown,
@@ -100,7 +99,18 @@ function normalizeSubjectForSyllabus(subject: SubjectData): SubjectData {
     return { ...subject, courseType: 'industry-oriented-tests' };
   }
   if (normalizedName === 'audit course i' || normalizedName === 'audit course ii') return { ...subject, courseType: 'audit-course' };
-  if (normalizedName === 'heritage of tamils' || normalizedName === 'tamils and technology') return { ...subject, courseType: 'heritage-course' };
+  if (normalizedName === 'heritage of tamils' || normalizedName === 'tamils and technology') {
+    const activityOneCount = Math.max(1, Math.floor(Number(subject.act1No) || 0));
+    const activityTwoCount = Math.max(1, Math.floor(Number(subject.act2No) || 0));
+    return {
+      ...subject,
+      courseType: 'heritage-course',
+      act1No: activityOneCount,
+      act1Scores: syncScoresArray(subject.act1Scores, activityOneCount),
+      act2No: activityTwoCount,
+      act2Scores: syncScoresArray(subject.act2Scores, activityTwoCount),
+    };
+  }
   if (normalizedName === 'self learning course') return { ...subject, code: 'CS23L01', courseType: 'self-learning' };
   if (normalizedName === 'skill development course i') return { ...subject, courseType: 'laboratory-course' };
   if (normalizedName === 'open elective ii') return { ...subject, code: '', courseType: 'theory' };
@@ -345,6 +355,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
   const [isMobileCoursesOpen, setIsMobileCoursesOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showFeedbackHub, setShowFeedbackHub] = useState(false);
   const [includeEstimates, setIncludeEstimates] = useState(false);
   const [estimatePercentage, setEstimatePercentage] = useState(80);
   const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
@@ -588,21 +599,52 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     setSelectedSemester(semester);
     setIsEditorOpen(false);
     setActiveTab('calculator');
+    setShowFeedbackHub(false);
   };
 
   const handleOpenPresetCourse = (course: PresetCourse) => {
     calculationRevisionRef.current += 1;
+    const isHeritageCourse = getCourseType({
+      ...DEFAULT_SUBJECT,
+      name: course.name,
+      courseType: course.courseType,
+    }) === 'heritage-course';
     const existing = findSubjectForCourse(subjects, course);
     if (existing) {
       setCurrentSubjectId(existing.id);
+      if (isHeritageCourse) {
+        const activityOneCount = Math.max(1, Math.floor(Number(existing.act1No) || 0));
+        const activityTwoCount = Math.max(1, Math.floor(Number(existing.act2No) || 0));
+        setSubjects((previous) => previous.map((subject) => subject.id === existing.id
+          ? {
+              ...subject,
+              courseType: 'heritage-course',
+              act1No: activityOneCount,
+              act1Scores: syncScoresArray(subject.act1Scores, activityOneCount),
+              act2No: activityTwoCount,
+              act2Scores: syncScoresArray(subject.act2Scores, activityTwoCount),
+            }
+          : subject));
+      }
+      if (course.electiveSlot) {
+        setSubjects((previous) => {
+          const selected = previous.find((subject) => subject.id === existing.id);
+          return selected
+            ? [...previous.filter((subject) => subject.id !== selected.id), selected]
+            : previous;
+        });
+      }
     } else {
       const newSubject: SubjectData = {
         ...DEFAULT_SUBJECT,
         id: `course_${course.id}`,
         name: course.name,
         code: course.code,
-        courseType: course.courseType,
+        courseType: isHeritageCourse ? 'heritage-course' : course.courseType,
         ...(course.courseType === 'universal-human-values'
+          ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
+          : {}),
+        ...(isHeritageCourse
           ? { act1No: 1, act1Scores: [''], act2No: 1, act2Scores: [''] }
           : {}),
         ...(course.courseType === 'self-learning' ? { selfLearningPassMark: 50 } : {}),
@@ -614,6 +656,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     }
     setSelectedSemester(course.semester);
     setActiveTab('calculator');
+    setShowFeedbackHub(false);
     setIsEditorOpen(true);
     setIsDialogOpen(false);
   };
@@ -621,6 +664,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const handleOpenOtherCourse = (subject: SubjectData) => {
     setCurrentSubjectId(subject.id);
     setActiveTab('calculator');
+    setShowFeedbackHub(false);
     setIsEditorOpen(true);
   };
 
@@ -642,6 +686,11 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
 
   const closeMobileCourses = useCallback(() => setIsMobileCoursesOpen(false), []);
   const closeProfileDrawer = useCallback(() => setIsProfileOpen(false), []);
+  const handleOpenFeedbackHub = () => {
+    setIsProfileOpen(false);
+    setIsMobileCoursesOpen(false);
+    setShowFeedbackHub(true);
+  };
 
   const handleSaveAcademicProfile = async (values: AcademicProfileFormValues) => {
     const { selectedSemester: nextSemester, ...nextProfile } = values;
@@ -675,7 +724,8 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     setSaveError('');
   };
 
-  const handleMobileLogout = () => {
+  const handleProfileLogout = () => {
+    setIsProfileOpen(false);
     setIsMobileCoursesOpen(false);
     if (user) {
       void onSignOut();
@@ -884,6 +934,13 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     });
   }, [selectedSemester, subjects, calculatedSignatures]);
 
+  const mobileElectiveOptions = useMemo(() => Object.fromEntries(
+    (selectedSemester === null ? [] : ELECTIVE_SLOTS_BY_SEMESTER[selectedSemester] ?? []).map((slot) => [
+      slot,
+      PRESET_COURSES.filter((course) => course.semester === selectedSemester && course.electiveSlot === slot),
+    ])
+  ), [selectedSemester]);
+
   const otherCourseRows = useMemo(() => subjects
     .filter((subject) => subject.name.trim() && !findPresetForSubject(subject))
     .map((subject) => ({ subject, progress: getCourseProgress(subject, calculatedSignatures) })),
@@ -998,7 +1055,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             aria-controls={isProfileOpen ? 'academic-profile-drawer' : undefined}
             className="flex min-w-0 shrink items-center gap-2 text-left text-base font-black tracking-tight text-[#172554] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#172554] sm:text-lg"
           >
-            <span className="w-8 h-8 bg-[#172554] text-white flex items-center justify-center text-xs font-black">
+            <span className="w-8 h-8 rounded-[5px] bg-[#172554] text-white flex items-center justify-center text-xs font-black">
               CC
             </span>
             <span className="flex min-w-0 flex-col leading-tight">
@@ -1013,11 +1070,15 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </span>
           </button>
 
+          <span className="shrink-0 rounded bg-slate-200 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#172554]">
+            CSE
+          </span>
+
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-[#172554]">
             <button
               type="button"
-              onClick={() => setActiveTab('calculator')}
+              onClick={() => { setShowFeedbackHub(false); setActiveTab('calculator'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'calculator'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1029,7 +1090,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('grades')}
+              onClick={() => { setShowFeedbackHub(false); setActiveTab('grades'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'grades'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1041,7 +1102,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('gpa')}
+              onClick={() => { setShowFeedbackHub(false); setActiveTab('gpa'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${activeTab === 'gpa' ? 'text-[#172554] font-black border-b-2 border-[#172554]' : 'text-slate-600 hover:text-[#172554]'}`}
             >
               <GraduationCap className="w-5 h-5" />
@@ -1056,7 +1117,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                 aria-label="Choose semester"
                 value={selectedSemester ?? ''}
                 onChange={(event) => handleSemesterChange(event.currentTarget.value)}
-                className="min-w-24 appearance-none border border-slate-300 bg-white py-2 pl-2.5 pr-7 text-xs font-bold text-[#172554] focus:border-[#172554] focus:outline-2 focus:outline-[#172554] sm:min-w-28 sm:pl-3 sm:pr-8"
+                className="min-w-24 appearance-none rounded-md border border-slate-300 bg-white py-2 pl-2.5 pr-7 text-xs font-bold text-[#172554] focus:border-[#172554] focus:outline-2 focus:outline-[#172554] sm:min-w-28 sm:pl-3 sm:pr-8"
               >
                 <option value="">Choose…</option>
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
@@ -1069,38 +1130,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
 
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
 
-          <div className="hidden shrink-0 items-center gap-2 md:flex">
-            {user ? (
-              <>
-                <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={profile?.studentName.trim() || 'Student'}>
-                  {profile?.studentName.trim() || 'Student'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void onSignOut()}
-                  disabled={signOutPending}
-                  className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50 disabled:opacity-60"
-                >
-                  {signOutPending ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <LogOut className="w-3.5 h-3.5" aria-hidden="true" />}
-                  <span className="hidden md:inline">{signOutPending ? 'Signing out' : 'Log out'}</span>
-                  <span className="sr-only md:hidden">{signOutPending ? 'Signing out' : 'Log out'}</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onExitGuest}
-                className="inline-flex items-center gap-1.5 border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-bold uppercase tracking-wide text-[#172554] hover:bg-slate-50"
-              >
-                <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-                <span className="hidden md:inline">Exit guest session</span>
-                <span className="sr-only md:hidden">Exit guest session</span>
-              </button>
-            )}
-          </div>
         </div>
       </header>
-      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && (
+      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && (
         hasCalculatedCurrentSubject ? (
           <StickyResultSummary
             placement="desktop"
@@ -1118,14 +1150,14 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </div>
         )
       )}
-      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && !hasCalculatedCurrentSubject && (
+      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && !hasCalculatedCurrentSubject && (
         <div className="border-b border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#172554] md:hidden" role="status" aria-live="polite" aria-label="Current subject">
           {currentSubject.name}
         </div>
       )}
       </div>
 
-      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject && (
+      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject && (
         <StickyResultSummary
           placement="mobile"
           subjectName={currentSubject.name}
@@ -1138,15 +1170,14 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
       )}
 
       <MobileBottomNavigation
-        activeTab={activeTab}
+        activeTab={showFeedbackHub ? null : activeTab}
         coursesOpen={isMobileCoursesOpen}
-        logoutPending={signOutPending}
         onNavigate={(tab) => {
           setIsMobileCoursesOpen(false);
+          setShowFeedbackHub(false);
           setActiveTab(tab);
         }}
         onToggleCourses={() => setIsMobileCoursesOpen((open) => !open)}
-        onLogout={handleMobileLogout}
         coursesButtonRef={mobileCoursesButtonRef}
       />
 
@@ -1158,7 +1189,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             Your courses and results exist only in memory and will be cleared when you reload or close this page.
           </div>
         )}
-        {saveError && (
+        {saveError && !(activeTab === 'calculator' && isEditorOpen) && (
           <div className="mb-5 flex items-start justify-between gap-3 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">
             <span>{saveError}</span>
             <button type="button" onClick={() => setSaveError('')} aria-label="Dismiss save error" className="font-bold underline">Dismiss</button>
@@ -1187,14 +1218,21 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </section>
         )}
 
-        {activeTab === 'calculator' && selectedSemester === null && (
+        {showFeedbackHub ? (
+          <section className="mx-auto my-6 max-w-2xl border border-slate-300 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="feedback-hub-heading">
+            <h1 id="feedback-hub-heading" className="text-xl font-black text-[#172554]">Feedback Hub</h1>
+            <p className="mt-2 text-sm text-slate-600">Feedback submission is not available yet.</p>
+          </section>
+        ) : null}
+
+        {!showFeedbackHub && activeTab === 'calculator' && selectedSemester === null && (
           <section className="mx-auto my-6 max-w-xl border border-slate-300 bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6">
             <h1 className="text-lg font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">Select a semester from the menu at the top right to see its courses and start entering marks.</p>
           </section>
         )}
 
-        {activeTab === 'calculator' && selectedSemester !== null && (
+        {!showFeedbackHub && activeTab === 'calculator' && selectedSemester !== null && (
           <div className="min-w-0 space-y-6">
             <div className={`min-w-0 ${isEditorOpen ? 'hidden md:block' : ''}`}>
               <SemesterCourseDashboard
@@ -1403,6 +1441,8 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                     testDisplayName={isIndustryOrientedTests ? 'MID TERM TEST' : currentCourseType === 'standards-course' ? 'STANDARDS TEST I' : currentCourseType === 'audit-course' ? 'AUDIT TEST I' : currentCourseType === 'heritage-course' ? 'HERITAGE ASSESSMENT TEST I' : undefined}
                     isTwoTestCourse={isTwoTestCourse}
                     isSelfDevelopment={breakdown.courseType === 'self-development'}
+                    minimumActivityCount={currentCourseType === 'heritage-course' ? 1 : 0}
+                    activityTitle={currentCourseType === 'heritage-course' ? 'Heritage Activity' : undefined}
                     actNo={displayedSubject.act1No}
                     onActNoChange={(val) => updateCurrentSubject({ act1No: val })}
                     actScores={displayedSubject.act1Scores}
@@ -1436,6 +1476,8 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   testDisplayName={isIndustryOrientedTests ? 'END COURSE TEST' : currentCourseType === 'standards-course' ? 'STANDARDS TEST II' : currentCourseType === 'audit-course' ? 'AUDIT TEST II' : currentCourseType === 'heritage-course' ? 'HERITAGE ASSESSMENT TEST II' : undefined}
                   isTwoTestCourse={isTwoTestCourse}
                   isSelfDevelopment={breakdown.courseType === 'self-development'}
+                  minimumActivityCount={currentCourseType === 'heritage-course' ? 1 : 0}
+                  activityTitle={currentCourseType === 'heritage-course' ? 'Heritage Activity' : undefined}
                   actNo={displayedSubject.act2No}
                   onActNoChange={(val) => updateCurrentSubject({ act2No: val })}
                   actScores={displayedSubject.act2Scores}
@@ -1477,16 +1519,33 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                   )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-slate-300 bg-white p-4">
-                  <button
-                    type="button"
-                    onClick={() => void handleCalculateMarks()}
-                    disabled={calculationBusy}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:opacity-60 transition-colors cursor-pointer"
-                  >
-                    {calculationBusy ? <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Calculator className="w-4 h-4" aria-hidden="true" />}
-                    {calculationBusy ? 'Saving result…' : hasCalculatedCurrentSubject ? 'Recalculate Mark & Grade' : 'Calculate Mark & Grade'}
-                  </button>
+                <div className="space-y-3 border border-slate-300 bg-white p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleCalculateMarks()}
+                      disabled={calculationBusy}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wider bg-[#172554] text-white hover:bg-[#1e3a8a] disabled:opacity-60 transition-colors cursor-pointer"
+                    >
+                      {calculationBusy ? <LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Calculator className="w-4 h-4" aria-hidden="true" />}
+                      {calculationBusy ? 'Saving result…' : hasCalculatedCurrentSubject ? 'Recalculate Mark & Grade' : 'Calculate Mark & Grade'}
+                    </button>
+                    {['project', 'project-work'].includes(currentCourseType) && (calculationBusy || hasCalculatedCurrentSubject) && (
+                      <p className="text-xs font-semibold text-slate-600" role="status" aria-live="polite">
+                        {calculationBusy
+                          ? 'Saving Project Work result…'
+                          : guestMode
+                            ? 'Project Work result is calculated for this temporary session only.'
+                            : 'Project Work result is saved to your account.'}
+                      </p>
+                    )}
+                  </div>
+                  {saveError && (
+                    <p className="flex items-start justify-between gap-3 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900" role="alert">
+                      <span>{saveError}</span>
+                      <button type="button" onClick={() => setSaveError('')} aria-label="Dismiss save error" className="font-bold underline">Dismiss</button>
+                    </p>
+                  )}
                 </div>
 
                 {/* Show the final marks and grade only after an explicit calculation. */}
@@ -1501,23 +1560,22 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </div>
         )}
 
-        {activeTab === 'grades' && (
-          <div className="space-y-6 sm:space-y-8 max-w-4xl mx-auto">
-            <div className="bg-white border border-slate-300 p-4 sm:p-6 shadow-sm">
-              <h2 className="text-lg font-black text-[#172554] mb-1 uppercase tracking-wide">
+        {!showFeedbackHub && activeTab === 'grades' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white border border-slate-300 p-3 sm:p-5 shadow-sm">
+              <h2 className="text-lg font-black text-[#172554] mb-2 uppercase tracking-wide">
                 Grading of Courses
               </h2>
-              <p className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                These mark bands are indicative only. Regulation 20.2 specifies customized grading based on course averages and relative student performance, finalized by the Academic Monitoring Committee. Official grades may differ.
+              <p className="mb-3 border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-950">
+                These mark bands are indicative only. Official grades may differ.
               </p>
-              <div className="overflow-x-auto border border-slate-200">
-                <table className="w-full text-left text-sm border-collapse">
+              <div className="border border-slate-200">
+                <table className="w-full table-fixed text-left text-sm border-collapse">
                   <thead>
                     <tr className="bg-[#172554] text-white border-b-2 border-[#172554] text-xs font-extrabold uppercase tracking-wider">
-                      <th className="py-3 px-4">Grade</th>
-                      <th className="py-3 px-4">Description</th>
-                      <th className="py-3 px-4 text-center">Grade Points</th>
-                      <th className="py-3 px-4">Current Status</th>
+                      <th className="w-[20%] py-2 px-2">Grade</th>
+                      <th className="w-[50%] py-2 px-2">Description</th>
+                      <th className="w-[30%] py-2 px-1 text-center text-[10px] leading-tight sm:px-2 sm:text-xs">Grade Points</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-xs sm:text-sm">
@@ -1528,17 +1586,20 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                           key={grade.letter}
                           className={isCurrent ? 'bg-blue-50 font-bold text-[#172554]' : 'hover:bg-slate-50'}
                         >
-                          <td className="py-3 px-4 text-base font-black text-[#172554]">{grade.letter}</td>
-                          <td className="py-3 px-4 font-semibold text-slate-800">{grade.label}</td>
-                          <td className="py-3 px-4 text-center font-bold text-[#172554]">{grade.gradePoint}</td>
-                          <td className="py-3 px-4">
-                            {isCurrent ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-black text-[#172554] bg-blue-50 border border-blue-200 px-2 py-0.5 uppercase tracking-wider">
-                                Current Grade
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                          <td
+                            className={`py-2 px-2 text-base font-black text-[#172554] ${
+                              isCurrent ? 'bg-blue-100 ring-2 ring-inset ring-[#172554]' : ''
+                            }`}
+                            aria-current={isCurrent ? 'true' : undefined}
+                          >
+                            {grade.letter}
+                            {isCurrent && <span className="sr-only"> — Current grade</span>}
+                          </td>
+                          <td className={`py-2 px-2 font-semibold leading-tight text-slate-800 break-words ${isCurrent ? 'bg-blue-50 font-black text-[#172554]' : ''}`}>
+                            {grade.label}
+                          </td>
+                          <td className={`py-2 px-1 text-center font-bold text-[#172554] break-words sm:px-2 ${isCurrent ? 'bg-blue-50 font-black' : ''}`}>
+                            {grade.gradePoint}
                           </td>
                         </tr>
                       );
@@ -1546,10 +1607,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
                     {/* Special grades from Table 11 */}
                     {SPECIAL_GRADES.map((sg) => (
                       <tr key={sg.code} className="hover:bg-slate-50 text-slate-600">
-                        <td className="py-3 px-4 text-base font-black text-[#172554]">{sg.code}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700">{sg.description}</td>
-                        <td className="py-3 px-4 text-center font-bold text-[#172554]">{sg.gradePoint}</td>
-                        <td className="py-3 px-4 text-slate-400">—</td>
+                        <td className="py-2 px-2 text-base font-black text-[#172554]">{sg.code}</td>
+                        <td className="py-2 px-2 font-semibold leading-tight text-slate-700 break-words">{sg.description}</td>
+                        <td className="py-2 px-1 text-center font-bold text-[#172554] break-words sm:px-2">{sg.gradePoint}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1557,48 +1617,10 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
               </div>
             </div>
 
-            {/* Table 12: Range of Marks for Absolute grading system */}
-            <div className="bg-white border border-slate-300 p-4 sm:p-6 shadow-sm">
-              <h2 className="text-lg font-black text-[#172554] mb-1 uppercase tracking-wide">
-                Table 12 – Range of Marks for Absolute grading system
-              </h2>
-              <p className="text-xs font-semibold text-slate-600 mb-4">
-                Score ranges out of 100 total marks.
-              </p>
-
-              <div className="overflow-x-auto border border-slate-200">
-                <table className="w-full text-center text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-[#172554] text-white border-b-2 border-[#172554] text-xs font-extrabold uppercase tracking-wider divide-x divide-white">
-                      {GRADE_SCALE.map((g) => (
-                        <th key={g.letter} className="py-3 px-3">
-                          {g.letter}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="divide-x divide-[#172554] text-xs sm:text-sm font-bold text-[#172554]">
-                      {GRADE_SCALE.map((g) => {
-                        const isCurrent = hasCalculatedCurrentSubject && hasSubjectSelected && breakdown.grade.letter === g.letter;
-                        return (
-                          <td
-                            key={g.letter}
-                            className={`py-3.5 px-3 ${isCurrent ? 'bg-slate-200 font-black' : ''}`}
-                          >
-                            {g.rangeLabel}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         )}
     
-        {activeTab === 'gpa' && (
+        {!showFeedbackHub && activeTab === 'gpa' && (
           <GPACalculator
             subjects={subjects}
             calculatedSignatures={calculatedSignatures}
@@ -1616,6 +1638,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   semester={selectedSemester}
   courses={semesterCourseRows}
   electiveSlots={semesterElectiveRows}
+  electiveOptions={mobileElectiveOptions}
   otherCourses={otherCourseRows}
   selectedSubjectId={isEditorOpen ? currentSubjectId : ''}
   allCoursesCalculated={allSemesterCoursesCalculated}
@@ -1623,10 +1646,6 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   onSelectCourse={(course) => {
     setIsMobileCoursesOpen(false);
     handleOpenPresetCourse(course);
-  }}
-  onSelectElective={(slot) => {
-    setIsMobileCoursesOpen(false);
-    handleOpenElectivePicker(slot);
   }}
   onSelectOtherCourse={(subject) => {
     setIsMobileCoursesOpen(false);
@@ -1648,6 +1667,9 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   onSave={handleSaveAcademicProfile}
   theme={theme}
   onToggleTheme={onToggleTheme}
+  onOpenFeedback={handleOpenFeedbackHub}
+  onLogout={handleProfileLogout}
+  logoutPending={signOutPending}
 />
 
 {/* Subject Selection Modal Dialog Box */}
