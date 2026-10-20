@@ -69,6 +69,19 @@ const LEGACY_STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
 const THEME_STORAGE_KEY = 'calcredit_theme';
 const GOOGLE_ACCOUNT_SELECTION_KEY = 'calcredit_choose_google_account_after_signout';
 
+const withViewTransition = (update: () => void) => {
+  const viewTransitionDocument = document as Document & {
+    startViewTransition?: (callback: () => void) => unknown;
+  };
+
+  if (viewTransitionDocument.startViewTransition) {
+    viewTransitionDocument.startViewTransition(update);
+    return;
+  }
+
+  update();
+};
+
 function getInitialTheme(): AppTheme {
   try {
     return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
@@ -382,6 +395,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const [profile, setProfile] = useState<AcademicProfileData | null>(null);
   const [currentSubjectId, setCurrentSubjectId] = useState('');
   const [selectedSemester, setSelectedSemester] = useState<SemesterNumber | null>(null);
+  const [isSemesterMenuOpen, setIsSemesterMenuOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
   const [isMobileCoursesOpen, setIsMobileCoursesOpen] = useState(false);
@@ -407,6 +421,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesSignatureRef = useRef('');
+  const semesterMenuRef = useRef<HTMLDivElement>(null);
   const latestPreferencesRef = useRef({
     currentSubjectId,
     activeTab,
@@ -415,6 +430,19 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     selectedSemester,
   });
   const calculationRevisionRef = useRef(0);
+
+  useEffect(() => {
+    if (!isSemesterMenuOpen) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (semesterMenuRef.current && !semesterMenuRef.current.contains(event.target as Node)) {
+        setIsSemesterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown);
+  }, [isSemesterMenuOpen]);
   const mobileCoursesButtonRef = useRef<HTMLButtonElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -733,17 +761,21 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const closeMobileCourses = useCallback(() => setIsMobileCoursesOpen(false), []);
   const closeProfileDrawer = useCallback(() => setIsProfileOpen(false), []);
   const handleOpenFeedbackHub = () => {
-    setIsProfileOpen(false);
-    setIsMobileCoursesOpen(false);
-    setShowCredits(false);
-    setShowFeedbackHub(true);
+    withViewTransition(() => {
+      setIsProfileOpen(false);
+      setIsMobileCoursesOpen(false);
+      setShowCredits(false);
+      setShowFeedbackHub(true);
+    });
   };
 
   const handleOpenCredits = () => {
-    setIsProfileOpen(false);
-    setIsMobileCoursesOpen(false);
-    setShowFeedbackHub(false);
-    setShowCredits(true);
+    withViewTransition(() => {
+      setIsProfileOpen(false);
+      setIsMobileCoursesOpen(false);
+      setShowFeedbackHub(false);
+      setShowCredits(true);
+    });
   };
 
   const handleSaveAcademicProfile = async (values: AcademicProfileFormValues) => {
@@ -1110,32 +1142,34 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             aria-haspopup="dialog"
             aria-expanded={isProfileOpen}
             aria-controls={isProfileOpen ? 'academic-profile-drawer' : undefined}
-            className="flex min-w-0 shrink items-center gap-2 text-left text-base font-black tracking-tight text-[#172554] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#172554] sm:text-lg"
+            className="flex min-w-0 shrink items-center gap-2 text-left text-base font-black tracking-tight text-[#172554] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#172554] sm:text-xl"
           >
-            <span className="w-8 h-8 rounded-[5px] bg-[#172554] text-white flex items-center justify-center text-xs font-black">
-              CC
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[#172554] text-blue-100 shadow-sm">
+              <span className="text-sm font-black tracking-[-0.12em]" aria-hidden="true">CC</span>
+              <span className="absolute bottom-1.5 h-0.5 w-2 rounded-full bg-cyan-300" aria-hidden="true" />
             </span>
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="hidden uppercase md:inline">CALCREDIT</span>
-              <span className="text-[10px] uppercase leading-tight md:hidden">CALCREDIT</span>
-              <span
-                className="max-w-20 truncate text-[10px] font-semibold normal-case tracking-normal text-slate-600 md:max-w-36"
-                title={profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
-              >
-                {profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
-              </span>
+              <span className="tracking-[0.08em]">CalCredit</span>
             </span>
           </button>
 
-          <span className="shrink-0 rounded bg-slate-200 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#172554]">
-            CSE
-          </span>
+          <div className="hidden min-w-0 max-w-44 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 sm:flex">
+            <div className="min-w-0">
+              <p
+                className="truncate text-xs font-bold text-[#172554]"
+                title={profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
+              >
+                {profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
+              </p>
+              <p className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">CSE</p>
+            </div>
+          </div>
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-[#172554]">
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('calculator'); }}
+              onClick={() => withViewTransition(() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('calculator'); })}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'calculator'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1147,7 +1181,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('grades'); }}
+              onClick={() => withViewTransition(() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('grades'); })}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'grades'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1159,7 +1193,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('gpa'); }}
+              onClick={() => withViewTransition(() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('gpa'); })}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${activeTab === 'gpa' ? 'text-[#172554] font-black border-b-2 border-[#172554]' : 'text-slate-600 hover:text-[#172554]'}`}
             >
               <GraduationCap className="w-5 h-5" />
@@ -1169,20 +1203,55 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
 
           <label className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#172554] sm:gap-2">
             <span className="hidden md:inline">Semester</span>
-            <span className="relative">
-              <select
+            <div ref={semesterMenuRef} className="relative">
+              <button
+                type="button"
                 aria-label="Choose semester"
-                value={selectedSemester ?? ''}
-                onChange={(event) => handleSemesterChange(event.currentTarget.value)}
-                className="min-w-24 appearance-none rounded-md border border-slate-300 bg-white py-2 pl-2.5 pr-7 text-xs font-bold text-[#172554] focus:border-[#172554] focus:outline-2 focus:outline-[#172554] sm:min-w-28 sm:pl-3 sm:pr-8"
+                aria-haspopup="listbox"
+                aria-expanded={isSemesterMenuOpen}
+                onClick={() => setIsSemesterMenuOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setIsSemesterMenuOpen(false);
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setIsSemesterMenuOpen(true);
+                  }
+                }}
+                className="inline-flex h-10 min-w-24 items-center justify-between gap-2 rounded-full border border-slate-300 bg-slate-50 pl-3 pr-3 text-xs font-bold text-[#172554] shadow-sm transition-colors hover:border-slate-400 hover:bg-white focus:border-[#172554] focus:outline-2 focus:outline-[#172554] sm:min-w-28 sm:pl-4"
               >
-                <option value="">Choose…</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
-                  <option key={semester} value={semester}>Semester {semester}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" aria-hidden="true" />
-            </span>
+                <span>{selectedSemester ? `Semester ${selectedSemester}` : 'Choose…'}</span>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isSemesterMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
+              {isSemesterMenuOpen && (
+                <div
+                  role="listbox"
+                  aria-label="Semester options"
+                  className="absolute right-0 z-40 mt-2 w-32 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg ring-1 ring-slate-950/5"
+                >
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selectedSemester === null}
+                    onClick={() => { handleSemesterChange(''); setIsSemesterMenuOpen(false); }}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-[#172554] aria-selected:bg-blue-50 aria-selected:text-[#172554]"
+                  >
+                    Choose…
+                  </button>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
+                    <button
+                      key={semester}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedSemester === semester}
+                      onClick={() => { handleSemesterChange(String(semester)); setIsSemesterMenuOpen(false); }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-[#172554] aria-selected:bg-blue-50 aria-selected:text-[#172554]"
+                    >
+                      Semester {semester}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </label>
 
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -1230,10 +1299,12 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         activeTab={showFeedbackHub || showCredits ? null : activeTab}
         coursesOpen={isMobileCoursesOpen}
         onNavigate={(tab) => {
-          setIsMobileCoursesOpen(false);
-          setShowFeedbackHub(false);
-          setShowCredits(false);
-          setActiveTab(tab);
+          withViewTransition(() => {
+            setIsMobileCoursesOpen(false);
+            setShowFeedbackHub(false);
+            setShowCredits(false);
+            setActiveTab(tab);
+          });
         }}
         onToggleCourses={() => {
           setShowFeedbackHub(false);
