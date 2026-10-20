@@ -86,7 +86,7 @@ export const ContinuousAssessmentSection: React.FC<ContinuousAssessmentSectionPr
     : (Number(testMax) === 30 ? 30 : 50);
 
   return (
-    <section className="bg-white border border-slate-300 mb-8 shadow-sm">
+    <section className="overflow-hidden rounded-lg bg-white border border-slate-300 mb-8 shadow-sm">
       {/* Section Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-5 bg-[#172554] text-white">
         <div className="flex items-center gap-3">

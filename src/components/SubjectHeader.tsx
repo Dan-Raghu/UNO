@@ -15,7 +15,7 @@ export const SubjectHeader: React.FC<SubjectHeaderProps> = ({
   const courseTypeLabel = getCourseWeights(getCourseType(subject)).courseTypeLabel;
 
   return (
-    <div className="bg-white border border-slate-300 p-4 sm:p-6 mb-8 shadow-sm">
+    <div className="rounded-lg bg-white border border-slate-300 p-4 sm:p-6 mb-8 shadow-sm">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Course Details Selection Dialog Trigger */}
         <div className="flex-1">
@@ -24,7 +24,7 @@ export const SubjectHeader: React.FC<SubjectHeaderProps> = ({
           </label>
 
           {subject.name ? (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md p-3 bg-slate-50 border border-slate-200">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="text-sm sm:text-base font-black text-[#172554]">
                   {subject.name}
@@ -52,7 +52,7 @@ export const SubjectHeader: React.FC<SubjectHeaderProps> = ({
           <button
             type="button"
             onClick={onResetToBlank}
-            className="text-xs px-3.5 py-2.5 border border-slate-300 bg-white hover:border-[#172554] hover:bg-slate-50 text-[#172554] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-2 cursor-pointer"
+            className="rounded-md text-xs px-3.5 py-2.5 border border-slate-300 bg-white hover:border-[#172554] hover:bg-slate-50 text-[#172554] font-bold uppercase tracking-wider transition-colors inline-flex items-center gap-2 cursor-pointer"
             title="Clear all fields to enter fresh marks"
           >
             <RotateCcw className="w-4 h-4 text-[#172554]" />

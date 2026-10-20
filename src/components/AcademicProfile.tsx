@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, type FormEvent } from 'react';
-import { X } from 'lucide-react';
+import { Info, LoaderCircle, LogOut, MessageSquare, X } from 'lucide-react';
 import type { AcademicProfileData } from '../types';
 import type { SemesterNumber } from './SubjectSelectionDialog';
 import { ThemeToggle, type AppTheme } from './ThemeToggle';
@@ -31,8 +31,7 @@ export const AcademicProfileForm: React.FC<AcademicProfileFormProps> = ({
 }) => {
   const [studentName, setStudentName] = useState(profile?.studentName ?? '');
   const [rollNumber, setRollNumber] = useState(profile?.rollNumber ?? '');
-  const [department, setDepartment] = useState(profile?.department ?? '');
-  const [degree, setDegree] = useState(profile?.degree ?? '');
+  const [department, setDepartment] = useState('CSE');
   const [semester, setSemester] = useState(initialSemester?.toString() ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,8 +39,7 @@ export const AcademicProfileForm: React.FC<AcademicProfileFormProps> = ({
   useEffect(() => {
     setStudentName(profile?.studentName ?? '');
     setRollNumber(profile?.rollNumber ?? '');
-    setDepartment(profile?.department ?? '');
-    setDegree(profile?.degree ?? '');
+    setDepartment('CSE');
     setSemester(initialSemester?.toString() ?? '');
     setError('');
   }, [profile, initialSemester]);
@@ -55,12 +53,11 @@ export const AcademicProfileForm: React.FC<AcademicProfileFormProps> = ({
     const values = {
       studentName: studentName.trim(),
       rollNumber: rollNumber.trim(),
-      department: department.trim(),
-      degree: degree.trim(),
+      department,
     };
     const semesterValue = Number(semester);
     if (Object.values(values).some((value) => !value)) {
-      setError('Enter your name, roll number, department, and degree or program.');
+      setError('Enter your name and roll number to continue.');
       return;
     }
     if (!semesterOptions.includes(semesterValue as SemesterNumber)) {
@@ -80,32 +77,49 @@ export const AcademicProfileForm: React.FC<AcademicProfileFormProps> = ({
     }
   };
 
-  const fields = [
-    { id: 'academic-student-name', label: 'Student name', value: studentName, change: setStudentName, autoComplete: 'name' },
-    { id: 'academic-roll-number', label: 'Roll number', value: rollNumber, change: setRollNumber, autoComplete: 'off' },
-    { id: 'academic-department', label: 'Department', value: department, change: setDepartment, autoComplete: 'organization-title' },
-    { id: 'academic-degree', label: 'Degree / program or course', value: degree, change: setDegree, autoComplete: 'organization-title' },
-  ];
-
   return (
     <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)} noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map(({ id, label, value, change, autoComplete }) => (
-          <label key={id} className="block">
-            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#172554]">{label}</span>
-            <input
-              id={id}
-              name={id}
-              type="text"
-              autoComplete={autoComplete}
-              value={value}
-              onChange={(event) => change(event.currentTarget.value)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'academic-profile-error' : undefined}
-              className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900"
-            />
-          </label>
-        ))}
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#172554]">Student name</span>
+          <input
+            id="academic-student-name"
+            name="studentName"
+            type="text"
+            autoComplete="name"
+            value={studentName}
+            onChange={(event) => setStudentName(event.currentTarget.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'academic-profile-error' : undefined}
+            className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#172554]">Roll number</span>
+          <input
+            id="academic-roll-number"
+            name="rollNumber"
+            type="text"
+            autoComplete="off"
+            value={rollNumber}
+            onChange={(event) => setRollNumber(event.currentTarget.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'academic-profile-error' : undefined}
+            className="w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[#172554]">Department</span>
+          <select
+            id="academic-department"
+            name="department"
+            value={department}
+            onChange={(event) => setDepartment(event.currentTarget.value)}
+            className="min-h-11 w-full border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900"
+          >
+            <option value="CSE">Computer Science and Engineering (CSE)</option>
+          </select>
+        </label>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -190,6 +204,9 @@ interface ProfileDrawerProps extends Omit<AcademicProfileFormProps, 'submitLabel
   onClose: () => void;
   theme: AppTheme;
   onToggleTheme: () => void;
+  onOpenFeedback: () => void;
+  onLogout: () => void;
+  logoutPending: boolean;
 }
 
 export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
@@ -202,6 +219,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   onSave,
   theme,
   onToggleTheme,
+  onOpenFeedback,
+  onLogout,
+  logoutPending,
 }) => {
   const [editing, setEditing] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -260,8 +280,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     ['Student name', profile?.studentName || (guestMode ? 'Guest Student' : 'Student')],
     ['Roll number', profile?.rollNumber || 'Not provided'],
     ['Email address', guestMode ? 'Not available in a guest session' : email || 'Email unavailable'],
-    ['Department', profile?.department || 'Not provided'],
-    ['Degree / program or course', profile?.degree || 'Not provided'],
+    ['Department', profile?.department || 'CSE'],
     ['Current semester', initialSemester ? `Semester ${initialSemester}` : 'Not selected'],
   ];
 
@@ -346,6 +365,36 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </>
           )}
         </div>
+        {!editing && (
+          <footer className="space-y-2 border-t border-slate-200 p-5">
+            <button
+              type="button"
+              onClick={onOpenFeedback}
+              className="flex min-h-11 w-full items-center gap-3 border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-[#172554] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#172554]"
+            >
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+              Feedback Hub
+            </button>
+            <details className="border border-slate-300">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2 text-sm font-semibold text-[#172554] focus-visible:outline-2 focus-visible:outline-[#172554]">
+                <Info className="h-4 w-4" aria-hidden="true" />
+                Credits
+              </summary>
+              <p className="px-3 pb-3 text-sm text-slate-600">Credits information is not available yet.</p>
+            </details>
+            <button
+              type="button"
+              onClick={onLogout}
+              disabled={logoutPending}
+              className="flex min-h-11 w-full items-center gap-3 border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-[#172554] hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-[#172554]"
+            >
+              {logoutPending
+                ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <LogOut className="h-4 w-4" aria-hidden="true" />}
+              {logoutPending ? 'Signing out…' : guestMode ? 'Exit guest session' : 'Log out'}
+            </button>
+          </footer>
+        )}
       </aside>
     </div>
   );

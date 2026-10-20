@@ -17,6 +17,7 @@ interface DynamicScoreBoxesProps {
   minimumCount?: number;
   maximumCount?: number;
   scoreLabel?: string;
+  itemLabel?: string;
 }
 
 export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
@@ -35,8 +36,10 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
   minimumCount = 0,
   maximumCount = 20,
   scoreLabel,
+  itemLabel,
 }) => {
   const numericCount = Math.max(0, parseInt(String(count), 10) || 0);
+  const accessibleItemLabel = itemLabel ?? scoreLabel ?? (category === 'assignment' ? 'Assignment' : 'Lab Evaluation');
 
   const handleBoxChange = (index: number, val: string) => {
     const newScores = [...scores];
@@ -59,7 +62,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
   const handleCountInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     if (raw === '') {
-      onCountChange('');
+      onCountChange(minimumCount > 0 ? minimumCount : '');
       return;
     }
     const val = parseInt(raw, 10);
@@ -117,8 +120,8 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
               <button
                 type="button"
                 onClick={decrementCount}
-                disabled={estimatedMarks || numericCount <= 0}
-                aria-label="Decrease number"
+                disabled={estimatedMarks || numericCount <= minimumCount}
+                aria-label={`Decrease number of ${accessibleItemLabel.toLowerCase()} items in ${caName}`}
                 className="p-1.5 text-[#172554] hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-r border-slate-300"
               >
                 <Minus className="w-4 h-4" />
@@ -138,7 +141,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                 type="button"
                 onClick={incrementCount}
                 disabled={estimatedMarks || numericCount >= maximumCount}
-                aria-label="Increase number"
+                aria-label={`Increase number of ${accessibleItemLabel.toLowerCase()} items in ${caName}`}
                 className="p-1.5 text-[#172554] hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors border-l border-slate-300"
               >
                 <Plus className="w-4 h-4" />
@@ -155,8 +158,8 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
             </p>
           </div>
         ) : (
-          <div className="my-4 overflow-x-auto bg-white">
-            <div className="flex divide-x divide-slate-200 min-w-max border-x border-slate-200">
+          <div className="my-4 bg-white">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] divide-x divide-slate-200 border-x border-slate-200">
               {Array.from({ length: numericCount }).map((_, idx) => {
                 const displayIndex = startIndex + idx;
                 const rawScore = scores[idx];
@@ -165,10 +168,12 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                 return (
                   <div
                     key={idx}
-                    className="p-3 flex flex-col items-center justify-center min-w-[124px] sm:min-w-[128px] hover:bg-slate-50 transition-colors"
+                    className="min-w-0 p-3 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors"
                   >
                     <span className="text-[11px] font-bold text-[#172554] mb-1.5 whitespace-nowrap">
-                      {scoreLabel ? `${scoreLabel} ${displayIndex}` : category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`}
+                      {accessibleItemLabel === 'Assignment' || accessibleItemLabel === 'Lab Evaluation'
+                        ? category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`
+                        : `${accessibleItemLabel} ${displayIndex}`}
                     </span>
 
                     <div className="flex items-center gap-1">
@@ -190,7 +195,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                         placeholder="0"
                         readOnly={estimatedMarks}
                         onChange={(e) => handleBoxChange(idx, e.target.value)}
-                        aria-label={`${category === 'assignment' ? 'Assignment' : 'Lab Evaluation'} ${displayIndex} mark out of ${maxMarkPerBox}`}
+                        aria-label={`${accessibleItemLabel} ${displayIndex} mark out of ${maxMarkPerBox}`}
                         className="w-14 min-w-14 py-1 px-1.5 text-xs font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] text-center read-only:bg-blue-50 read-only:text-[#1e3a8a]"
                       />
                       <button

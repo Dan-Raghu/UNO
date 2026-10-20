@@ -13,12 +13,12 @@ interface MobileCoursesSheetProps {
   semester: SemesterNumber | null;
   courses: SemesterCourseRow[];
   electiveSlots: SemesterElectiveRow[];
+  electiveOptions: Record<string, PresetCourse[]>;
   otherCourses: Array<{ subject: SubjectData; progress: CourseProgress }>;
   selectedSubjectId: string;
   allCoursesCalculated: boolean;
   onClose: () => void;
   onSelectCourse: (course: PresetCourse) => void;
-  onSelectElective: (slot: string) => void;
   onSelectOtherCourse: (subject: SubjectData) => void;
   onCalculateGpa: () => void;
 }
@@ -48,18 +48,19 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
   semester,
   courses,
   electiveSlots,
+  electiveOptions,
   otherCourses,
   selectedSubjectId,
   allCoursesCalculated,
   onClose,
   onSelectCourse,
-  onSelectElective,
   onSelectOtherCourse,
   onCalculateGpa,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(true);
+  const [expandedElectiveSlot, setExpandedElectiveSlot] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -106,10 +107,6 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
   if (!isOpen) return null;
 
   const courseCount = courses.length + electiveSlots.length + otherCourses.length;
-  const openElectivePicker = (slot: string) => {
-    restoreFocusRef.current = false;
-    onSelectElective(slot);
-  };
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <button
@@ -125,18 +122,17 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-courses-title"
-        className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col border-t border-slate-300 bg-white shadow-2xl"
+        className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-2xl border border-slate-300 bg-white shadow-2xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
+        <div className="flex justify-center pt-2" aria-hidden="true">
+          <span className="h-1 w-14 rounded-full bg-slate-300" />
+        </div>
         <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5">
           <div className="min-w-0">
-            <h2 id="mobile-courses-title" className="text-base font-black uppercase tracking-wide text-[#172554]">
-              {semester === null ? 'Courses' : `Semester ${semester} courses`}
-            </h2>
+            <h2 id="mobile-courses-title" className="text-base font-black text-[#172554]">Courses</h2>
             {semester !== null && (
-              <p className="mt-0.5 text-xs text-slate-600">
-                {courseCount} course{courseCount === 1 ? '' : 's'} in this semester
-              </p>
+              <p className="mt-0.5 text-xs text-slate-600">Semester {semester} · {courseCount} courses</p>
             )}
           </div>
           <button
@@ -168,13 +164,17 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
                         type="button"
                         onClick={() => onSelectCourse(course)}
                         aria-pressed={subject?.id === selectedSubjectId}
-                        className={`flex min-h-14 w-full items-center justify-between gap-3 px-2 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
+                        className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
                           subject?.id === selectedSubjectId ? 'bg-blue-50' : 'hover:bg-slate-50'
                         }`}
                       >
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-bold text-[#172554]">{course.name}</span>
-                          {course.code && <span className="mt-0.5 block font-mono text-[11px] text-slate-600">{course.code}</span>}
+                          {(course.code || course.type) && (
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-600">
+                              {course.code}{course.code && course.type ? ' · ' : ''}{course.type}
+                            </span>
+                          )}
                         </span>
                         <ProgressIndicator progress={progress} />
                       </button>
@@ -190,11 +190,15 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
                   </h3>
                   <ul className="divide-y divide-slate-200 border-y border-slate-200">
                     {electiveSlots.map(({ slot, course, subject, progress }) => (
-                      <li key={slot} className="flex min-h-14 items-center gap-2 px-2 py-2">
+                      <li key={slot} className={`flex min-h-14 flex-wrap items-center gap-2 rounded-md px-2 py-2 ${expandedElectiveSlot === slot ? 'border border-indigo-400 bg-indigo-50' : ''}`}>
                         <button
                           type="button"
-                          onClick={() => course ? onSelectCourse(course) : openElectivePicker(slot)}
+                          onClick={() => course
+                            ? onSelectCourse(course)
+                            : setExpandedElectiveSlot((current) => current === slot ? null : slot)}
                           aria-pressed={subject?.id === selectedSubjectId}
+                          aria-expanded={expandedElectiveSlot === slot}
+                          aria-controls={`elective-options-${slot.replace(/\s+/g, '-').toLowerCase()}`}
                           className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 text-left focus-visible:outline-2 focus-visible:outline-[#172554]"
                         >
                           <span className="min-w-0">
@@ -210,12 +214,50 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
                         {course && (
                           <button
                             type="button"
-                            onClick={() => openElectivePicker(slot)}
+                            onClick={() => setExpandedElectiveSlot((current) => current === slot ? null : slot)}
                             aria-label={`Change ${slot}`}
+                            aria-expanded={expandedElectiveSlot === slot}
+                            aria-controls={`elective-options-${slot.replace(/\s+/g, '-').toLowerCase()}`}
                             className="flex h-10 w-10 shrink-0 items-center justify-center border border-slate-300 text-slate-600 hover:border-[#172554] hover:text-[#172554] focus-visible:outline-2 focus-visible:outline-[#172554]"
                           >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </button>
+                        )}
+                        {expandedElectiveSlot === slot && (
+                          <>
+                            <div className="basis-full py-1">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                Available in Semester {semester}
+                              </p>
+                              <p className="mt-0.5 text-[10px] text-slate-500">
+                                Only choices for this semester and slot are shown.
+                              </p>
+                            </div>
+                            <ul
+                              id={`elective-options-${slot.replace(/\s+/g, '-').toLowerCase()}`}
+                              className="basis-full space-y-1.5"
+                            >
+                              {(electiveOptions[slot] ?? []).map((option) => (
+                                <li key={option.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelectCourse(option)}
+                                    className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-md border px-2.5 py-2 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
+                                      option.id === course?.id
+                                        ? 'border-[#172554] bg-slate-50'
+                                        : 'border-slate-300 bg-white hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-sm font-semibold text-[#172554]">{option.name}</span>
+                                      <span className="block text-[11px] text-slate-600">{option.code} · {option.type}</span>
+                                    </span>
+                                    {option.id === course?.id && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-label="Selected" />}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
                         )}
                       </li>
                     ))}
@@ -235,7 +277,7 @@ export const MobileCoursesSheet: React.FC<MobileCoursesSheetProps> = ({
                           type="button"
                           onClick={() => onSelectOtherCourse(subject)}
                           aria-pressed={subject.id === selectedSubjectId}
-                          className={`flex min-h-14 w-full items-center justify-between gap-3 px-2 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
+                          className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${
                             subject.id === selectedSubjectId ? 'bg-blue-50' : 'hover:bg-slate-50'
                           }`}
                         >

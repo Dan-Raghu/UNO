@@ -1,5 +1,5 @@
 import React from 'react';
-import { GraduationCap, Target, FlaskConical, SlidersHorizontal } from 'lucide-react';
+import { GraduationCap, Target, FlaskConical, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { GRADE_SCALE } from '../calculatorUtils';
 import { CourseType } from '../types';
 
@@ -83,7 +83,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
   const numericLab = eseLab === '' || eseLab === undefined ? 0 : Number(eseLab) || 0;
 
   return (
-    <section className="bg-white border border-slate-300 mb-8 shadow-sm">
+    <section className="overflow-hidden rounded-lg bg-white border border-slate-300 mb-8 shadow-sm">
       {/* Section Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-5 bg-[#172554] text-white">
         <div className="flex items-center gap-3">
@@ -160,7 +160,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
               <div className="pt-1 mb-4">
                 <div className="flex justify-between text-xs font-bold text-[#172554] mb-1">
                   <span>0</span>
-                  <span className="uppercase text-[11px] text-[#1e3a8a]">Adjust Theory Slider</span>
+                  <span className="sr-only">Adjust theory marks</span>
                   <span>100</span>
                 </div>
                 <input
@@ -318,8 +318,8 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
 
           {/* Column 3: Simulator & Combined ESE Breakdown */}
           <div className={`${hasTheory ? 'lg:col-span-4' : 'lg:col-span-6'} p-4 sm:p-5 bg-white flex flex-col justify-between`}>
-            <div>
-              <div className="flex items-center gap-2 mb-3">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 py-1 focus-visible:outline-2 focus-visible:outline-[#172554]">
                 <div className="p-1.5 bg-[#172554] text-white shrink-0">
                   <Target className="w-5 h-5" />
                 </div>
@@ -331,9 +331,10 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                     {isPracticalOnly ? `ESE Requirement` : `Combined ESE Requirement`}
                   </span>
                 </div>
-              </div>
+                <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-[#172554] transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
 
-              <div className="border border-[#172554] divide-y divide-[#172554] text-xs font-medium mb-3">
+              <div className="mt-3 border border-[#172554] divide-y divide-[#172554] text-xs font-medium mb-3">
                 {GRADE_SCALE.filter((g) => g.letter !== 'U').map((g) => {
                   const neededTotalEse = Math.max(0, g.minScore - internalTotal);
                   const isAlreadySecured = internalTotal >= g.minScore;
@@ -381,7 +382,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                   );
                 })}
               </div>
-            </div>
+            </details>
 
             {/* Combined ESE Footer Card */}
             <div className="p-3 bg-slate-50 border border-[#172554] text-xs space-y-1">
@@ -447,7 +448,7 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
               <div className="pt-2 mb-4">
                 <div className="flex justify-between text-xs font-bold text-[#172554] mb-1">
                   <span>0</span>
-                  <span className="uppercase text-[11px] text-[#1e3a8a]">Slide to adjust</span>
+                  <span className="sr-only">Adjust end-semester marks</span>
                   <span>100</span>
                 </div>
                 <input
@@ -481,17 +482,18 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
 
           {/* Target Grade "What-If" Planner */}
           <div className="md:col-span-6 p-4 sm:p-5 bg-white flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 py-1 focus-visible:outline-2 focus-visible:outline-[#172554]">
                 <div className="p-1.5 bg-[#172554] text-white shrink-0">
                   <Target className="w-5 h-5" />
                 </div>
                 <h4 className="text-sm font-bold text-[#172554] uppercase tracking-wide">
                   Target Grade Simulator
                 </h4>
-              </div>
+                <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-[#172554] transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
 
-              <div className="border border-[#172554] divide-y divide-[#172554] text-xs font-medium">
+              <div className="mt-3 border border-[#172554] divide-y divide-[#172554] text-xs font-medium">
                 {GRADE_SCALE.filter((g) => g.letter !== 'U').map((g) => {
                   const neededEse = Math.max(0, Math.ceil(((g.minScore - internalTotal) / eseTheoryWeight) * 100));
                   const isAlreadySecured = internalTotal >= g.minScore;
@@ -526,8 +528,8 @@ export const EndSemesterSection: React.FC<EndSemesterSectionProps> = ({
                   );
                 })}
               </div>
-            </div>
 
+            </details>
           </div>
         </div>
       )}

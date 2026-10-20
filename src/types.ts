@@ -59,7 +59,6 @@ export interface AcademicProfileData {
   studentName: string;
   rollNumber: string;
   department: string;
-  degree: string;
 }
 
 export interface ProjectWorkMarks {
