@@ -42,6 +42,7 @@ import { ThemeToggle, type AppTheme } from './components/ThemeToggle';
 import { GPA_COURSES } from './gpaCourses';
 import { AuthScreen } from './components/AuthScreen';
 import { FeedbackHub } from './components/FeedbackHub';
+import { CreditsScreen } from './components/CreditsScreen';
 import { auth, firebaseConfigReady } from './firebase';
 import {
   importLegacySubjects,
@@ -386,6 +387,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const [isMobileCoursesOpen, setIsMobileCoursesOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showFeedbackHub, setShowFeedbackHub] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [includeEstimates, setIncludeEstimates] = useState(false);
   const [estimatePercentage, setEstimatePercentage] = useState(80);
   const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
@@ -733,7 +735,15 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const handleOpenFeedbackHub = () => {
     setIsProfileOpen(false);
     setIsMobileCoursesOpen(false);
+    setShowCredits(false);
     setShowFeedbackHub(true);
+  };
+
+  const handleOpenCredits = () => {
+    setIsProfileOpen(false);
+    setIsMobileCoursesOpen(false);
+    setShowFeedbackHub(false);
+    setShowCredits(true);
   };
 
   const handleSaveAcademicProfile = async (values: AcademicProfileFormValues) => {
@@ -1125,7 +1135,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-[#172554]">
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setActiveTab('calculator'); }}
+              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('calculator'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'calculator'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1137,7 +1147,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setActiveTab('grades'); }}
+              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('grades'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${
                 activeTab === 'grades'
                   ? 'text-[#172554] font-black border-b-2 border-[#172554]'
@@ -1149,7 +1159,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
             <button
               type="button"
-              onClick={() => { setShowFeedbackHub(false); setActiveTab('gpa'); }}
+              onClick={() => { setShowFeedbackHub(false); setShowCredits(false); setActiveTab('gpa'); }}
               className={`transition-colors flex items-center gap-2 py-1 cursor-pointer ${activeTab === 'gpa' ? 'text-[#172554] font-black border-b-2 border-[#172554]' : 'text-slate-600 hover:text-[#172554]'}`}
             >
               <GraduationCap className="w-5 h-5" />
@@ -1179,7 +1189,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
 
         </div>
       </header>
-      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && (
+      {!showFeedbackHub && !showCredits && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && (
         hasCalculatedCurrentSubject ? (
           <StickyResultSummary
             placement="desktop"
@@ -1197,14 +1207,14 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </div>
         )
       )}
-      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && !hasCalculatedCurrentSubject && (
+      {!showFeedbackHub && !showCredits && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && !hasCalculatedCurrentSubject && (
         <div className="border-b border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#172554] md:hidden" role="status" aria-live="polite" aria-label="Current subject">
           {currentSubject.name}
         </div>
       )}
       </div>
 
-      {!showFeedbackHub && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject && (
+      {!showFeedbackHub && !showCredits && activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject && (
         <StickyResultSummary
           placement="mobile"
           subjectName={currentSubject.name}
@@ -1217,20 +1227,25 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
       )}
 
       <MobileBottomNavigation
-        activeTab={showFeedbackHub ? null : activeTab}
+        activeTab={showFeedbackHub || showCredits ? null : activeTab}
         coursesOpen={isMobileCoursesOpen}
         onNavigate={(tab) => {
           setIsMobileCoursesOpen(false);
           setShowFeedbackHub(false);
+          setShowCredits(false);
           setActiveTab(tab);
         }}
-        onToggleCourses={() => setIsMobileCoursesOpen((open) => !open)}
+        onToggleCourses={() => {
+          setShowFeedbackHub(false);
+          setShowCredits(false);
+          setIsMobileCoursesOpen((open) => !open);
+        }}
         coursesButtonRef={mobileCoursesButtonRef}
       />
 
       {/* Main Content Area */}
       <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 ${activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject ? 'pb-[calc(12rem+env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'} md:pb-8`}>
-        {guestMode && (
+        {guestMode && !showCredits && (
           <div className="mb-5 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
             <strong className="font-black">Guest session:</strong>{' '}
             Your courses and results exist only in memory and will be cleared when you reload or close this page.
@@ -1270,16 +1285,16 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             user={user}
             guestMode={guestMode}
           />
-        ) : null}
+        ) : showCredits ? <CreditsScreen /> : null}
 
-        {!showFeedbackHub && activeTab === 'calculator' && selectedSemester === null && (
+        {!showFeedbackHub && !showCredits && activeTab === 'calculator' && selectedSemester === null && (
           <section className="mx-auto my-6 max-w-xl border border-slate-300 bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6">
             <h1 className="text-lg font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">Select a semester from the menu at the top right to see its courses and start entering marks.</p>
           </section>
         )}
 
-        {!showFeedbackHub && activeTab === 'calculator' && selectedSemester !== null && (
+        {!showFeedbackHub && !showCredits && activeTab === 'calculator' && selectedSemester !== null && (
           <div className="min-w-0 space-y-6">
             <div className={`min-w-0 ${isEditorOpen ? 'hidden md:block' : ''}`}>
               <SemesterCourseDashboard
@@ -1611,7 +1626,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </div>
         )}
 
-        {!showFeedbackHub && activeTab === 'grades' && (
+        {!showFeedbackHub && !showCredits && activeTab === 'grades' && (
           <div className="max-w-4xl mx-auto">
             <div className="bg-white border border-slate-300 p-3 sm:p-5 shadow-sm">
               <h2 className="text-lg font-black text-[#172554] mb-2 uppercase tracking-wide">
@@ -1671,7 +1686,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
           </div>
         )}
     
-        {!showFeedbackHub && activeTab === 'gpa' && (
+        {!showFeedbackHub && !showCredits && activeTab === 'gpa' && (
           <GPACalculator
             subjects={subjects}
             calculatedSignatures={calculatedSignatures}
@@ -1719,6 +1734,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   theme={theme}
   onToggleTheme={onToggleTheme}
   onOpenFeedback={handleOpenFeedbackHub}
+  onOpenCredits={handleOpenCredits}
   onLogout={handleProfileLogout}
   logoutPending={signOutPending}
 />

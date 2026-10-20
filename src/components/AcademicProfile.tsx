@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Info, LoaderCircle, LogOut, MessageSquare, X } from 'lucide-react';
+import { LoaderCircle, LogOut, MessageSquare, UsersRound, X } from 'lucide-react';
 import type { AcademicProfileData } from '../types';
 import type { SemesterNumber } from './SubjectSelectionDialog';
 import { ThemeToggle, type AppTheme } from './ThemeToggle';
@@ -205,6 +205,7 @@ interface ProfileDrawerProps extends Omit<AcademicProfileFormProps, 'submitLabel
   theme: AppTheme;
   onToggleTheme: () => void;
   onOpenFeedback: () => void;
+  onOpenCredits: () => void;
   onLogout: () => void;
   logoutPending: boolean;
 }
@@ -220,6 +221,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   theme,
   onToggleTheme,
   onOpenFeedback,
+  onOpenCredits,
   onLogout,
   logoutPending,
 }) => {
@@ -375,13 +377,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <MessageSquare className="h-4 w-4" aria-hidden="true" />
               Feedback Hub
             </button>
-            <details className="border border-slate-300">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2 text-sm font-semibold text-[#172554] focus-visible:outline-2 focus-visible:outline-[#172554]">
-                <Info className="h-4 w-4" aria-hidden="true" />
-                Credits
-              </summary>
-              <p className="px-3 pb-3 text-sm text-slate-600">Credits information is not available yet.</p>
-            </details>
+            <button
+              type="button"
+              onClick={onOpenCredits}
+              className="flex min-h-11 w-full items-center gap-3 border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-[#172554] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#172554]"
+            >
+              <UsersRound className="h-4 w-4" aria-hidden="true" />
+              Credits
+            </button>
             <button
               type="button"
               onClick={onLogout}
