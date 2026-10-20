@@ -165,7 +165,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                 return (
                   <div
                     key={idx}
-                    className="p-3 flex flex-col items-center justify-center min-w-[112px] hover:bg-slate-50 transition-colors"
+                    className="p-3 flex flex-col items-center justify-center min-w-[124px] sm:min-w-[128px] hover:bg-slate-50 transition-colors"
                   >
                     <span className="text-[11px] font-bold text-[#172554] mb-1.5 whitespace-nowrap">
                       {scoreLabel ? `${scoreLabel} ${displayIndex}` : category === 'assignment' ? `Assignment ${displayIndex}` : `Lab ${displayIndex}`}
@@ -191,7 +191,7 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
                         readOnly={estimatedMarks}
                         onChange={(e) => handleBoxChange(idx, e.target.value)}
                         aria-label={`${category === 'assignment' ? 'Assignment' : 'Lab Evaluation'} ${displayIndex} mark out of ${maxMarkPerBox}`}
-                        className="w-12 py-0.5 px-1.5 text-xs font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] text-center read-only:bg-blue-50 read-only:text-[#1e3a8a]"
+                        className="w-14 min-w-14 py-1 px-1.5 text-xs font-bold text-[#172554] bg-white border border-[#172554] focus:outline-hidden focus:ring-1 focus:ring-[#172554] text-center read-only:bg-blue-50 read-only:text-[#1e3a8a]"
                       />
                       <button
                         type="button"
@@ -221,11 +221,11 @@ export const DynamicScoreBoxes: React.FC<DynamicScoreBoxesProps> = ({
           </span>
         </div>
 
-        <div className="flex items-baseline justify-between text-[#172554] pt-1">
-            <span className="text-xs font-bold uppercase tracking-wider">
-              {estimatedMarks ? 'MARKS CONTRIBUTED (ESTIMATE):' : 'MARKS CONTRIBUTED:'}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[#172554] pt-1">
+          <span className="min-w-0 text-xs font-bold uppercase tracking-wider">
+            {estimatedMarks ? 'MARKS CONTRIBUTED (ESTIMATE):' : 'MARKS CONTRIBUTED:'}
           </span>
-          <div className="flex items-baseline gap-1">
+          <div className="flex shrink-0 items-baseline gap-1">
             <span className="text-lg font-black tabular-nums">
               {calculatedPoints.toFixed(2)}
             </span>

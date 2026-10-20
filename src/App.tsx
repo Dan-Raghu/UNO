@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { SubjectData } from './types';
+import { AcademicProfileData, SubjectData } from './types';
 import {
   DEFAULT_SUBJECT,
   calculateMarks,
@@ -34,6 +34,11 @@ import {
   GPACalculator,
   hasEstimateableComponents,
 } from './components/GPACalculator';
+import { MobileBottomNavigation } from './components/MobileBottomNavigation';
+import { MobileCoursesSheet } from './components/MobileCoursesSheet';
+import { AcademicProfileFormValues, AcademicSetupScreen, ProfileDrawer } from './components/AcademicProfile';
+import { StickyResultSummary } from './components/StickyResultSummary';
+import { ThemeToggle, type AppTheme } from './components/ThemeToggle';
 import { GPA_COURSES } from './gpaCourses';
 import { AuthScreen } from './components/AuthScreen';
 import { auth, firebaseConfigReady } from './firebase';
@@ -42,6 +47,7 @@ import {
   loadUserWorkspace,
   saveCalculatedGrade,
   saveGpaHistory,
+  saveUserAcademicProfile,
   saveUserPreferences,
   skipLegacyMigration,
   syncUserSubjects,
@@ -59,6 +65,16 @@ import {
 } from 'lucide-react';
 
 const LEGACY_STORAGE_KEY = 'ca_ese_calculator_sem1_user_selected_v18';
+const THEME_STORAGE_KEY = 'calcredit_theme';
+
+function getInitialTheme(): AppTheme {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+  } catch (error) {
+    console.error('Unable to load the saved theme preference:', error);
+    return 'light';
+  }
+}
 
 function findSubjectForCourse(subjects: SubjectData[], course: PresetCourse): SubjectData | undefined {
   return subjects.find((subject) => {
@@ -169,6 +185,8 @@ interface AuthenticatedAppProps {
   onExitGuest: () => void;
   signOutPending: boolean;
   signOutError: string;
+  theme: AppTheme;
+  onToggleTheme: () => void;
 }
 
 function parseLegacySubjects(): SubjectData[] {
@@ -199,10 +217,24 @@ function WorkspaceLoading({ message }: { message: string }) {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [guestMode, setGuestMode] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>(getInitialTheme);
   const [authResolved, setAuthResolved] = useState(false);
   const [authError, setAuthError] = useState('');
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState('');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (error) {
+      console.error('Unable to save the theme preference:', error);
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => current === 'light' ? 'dark' : 'light');
+  }, []);
 
   useEffect(() => {
     if (!auth) {
@@ -255,6 +287,8 @@ export default function App() {
         onExitGuest={handleExitGuest}
         signOutPending={false}
         signOutError=""
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -264,6 +298,8 @@ export default function App() {
       <AuthScreen
         configurationError="Firebase is not configured. Account sign-in is unavailable, but you can continue as a guest."
         onContinueAsGuest={handleContinueAsGuest}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -283,7 +319,7 @@ export default function App() {
     );
   }
 
-  if (!user) return <AuthScreen onContinueAsGuest={handleContinueAsGuest} />;
+  if (!user) return <AuthScreen onContinueAsGuest={handleContinueAsGuest} theme={theme} onToggleTheme={toggleTheme} />;
 
   return (
     <AuthenticatedApp
@@ -294,22 +330,26 @@ export default function App() {
       onExitGuest={handleExitGuest}
       signOutPending={signOutPending}
       signOutError={signOutError}
+      theme={theme}
+      onToggleTheme={toggleTheme}
     />
   );
 }
 
-function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPending, signOutError }: AuthenticatedAppProps) {
+function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPending, signOutError, theme, onToggleTheme }: AuthenticatedAppProps) {
   const [subjects, setSubjects] = useState<SubjectData[]>([]);
+  const [profile, setProfile] = useState<AcademicProfileData | null>(null);
   const [currentSubjectId, setCurrentSubjectId] = useState('');
   const [selectedSemester, setSelectedSemester] = useState<SemesterNumber | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'calculator' | 'grades' | 'gpa'>('calculator');
+  const [isMobileCoursesOpen, setIsMobileCoursesOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [includeEstimates, setIncludeEstimates] = useState(false);
   const [estimatePercentage, setEstimatePercentage] = useState(80);
   const [calculatedSignatures, setCalculatedSignatures] = useState<Record<string, string>>({});
   const [gpaHistory, setGpaHistory] = useState<GpaHistoryEntry[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogPurpose, setDialogPurpose] = useState<'course' | 'elective'>('course');
   const [dialogElectiveSlot, setDialogElectiveSlot] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(Boolean(user));
   const [dataError, setDataError] = useState('');
@@ -324,7 +364,24 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preferencesSignatureRef = useRef('');
+  const latestPreferencesRef = useRef({
+    currentSubjectId,
+    activeTab,
+    includeEstimates,
+    estimatePercentage,
+    selectedSemester,
+  });
   const calculationRevisionRef = useRef(0);
+  const mobileCoursesButtonRef = useRef<HTMLButtonElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogReturnFocusRef = useRef<HTMLElement | null>(null);
+  latestPreferencesRef.current = {
+    currentSubjectId,
+    activeTab,
+    includeEstimates,
+    estimatePercentage,
+    selectedSemester,
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -335,6 +392,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
       .then((workspace) => {
         if (cancelled) return;
         const loadedSubjects = mergeDuplicateProjectSubjects(workspace.subjects.map(normalizeSubjectForSyllabus));
+        setProfile(workspace.profile);
         const preferredId = workspace.preferences.currentSubjectId;
         const selectedId = loadedSubjects.some((subject) => subject.id === preferredId)
           ? preferredId
@@ -421,9 +479,14 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     const timeout = window.setTimeout(() => {
       preferencesQueueRef.current = preferencesQueueRef.current
         .then(async () => {
-          if (signature === preferencesSignatureRef.current) return;
+          if (
+            signature === preferencesSignatureRef.current ||
+            signature !== JSON.stringify(latestPreferencesRef.current)
+          ) return;
           await saveUserPreferences(user.uid, preferences);
-          preferencesSignatureRef.current = signature;
+          if (signature === JSON.stringify(latestPreferencesRef.current)) {
+            preferencesSignatureRef.current = signature;
+          }
         })
         .catch((error: unknown) => {
           console.error('Unable to save account preferences:', error);
@@ -432,6 +495,12 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [currentSubjectId, activeTab, includeEstimates, estimatePercentage, selectedSemester, user?.uid, dataLoading, dataError]);
+
+  useEffect(() => {
+    if (isDialogOpen || !dialogReturnFocusRef.current) return;
+    dialogReturnFocusRef.current.focus();
+    dialogReturnFocusRef.current = null;
+  }, [isDialogOpen]);
 
   const currentSubject = useMemo(() => {
     return subjects.find((s) => s.id === currentSubjectId) || subjects[0] || DEFAULT_SUBJECT;
@@ -573,9 +642,63 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   };
 
   const handleOpenElectivePicker = (slot: string) => {
-    setDialogPurpose('elective');
+    const activeElement = document.activeElement;
+    dialogReturnFocusRef.current = activeElement instanceof HTMLElement &&
+      activeElement.closest('#mobile-courses-sheet')
+      ? mobileCoursesButtonRef.current
+      : activeElement instanceof HTMLElement
+        ? activeElement
+        : null;
     setDialogElectiveSlot(slot);
     setIsDialogOpen(true);
+  };
+
+  const handleCloseSubjectDialog = () => {
+    setIsDialogOpen(false);
+  };
+
+  const closeMobileCourses = useCallback(() => setIsMobileCoursesOpen(false), []);
+  const closeProfileDrawer = useCallback(() => setIsProfileOpen(false), []);
+
+  const handleSaveAcademicProfile = async (values: AcademicProfileFormValues) => {
+    const { selectedSemester: nextSemester, ...nextProfile } = values;
+    const nextActiveTab = selectedSemester !== nextSemester ? 'calculator' : activeTab;
+    const nextPreferences = {
+      currentSubjectId,
+      activeTab: nextActiveTab,
+      includeEstimates,
+      estimatePercentage,
+      selectedSemester: nextSemester,
+    };
+    latestPreferencesRef.current = nextPreferences;
+
+    if (user) {
+      const saveTask = preferencesQueueRef.current.then(async () => {
+        await saveUserAcademicProfile(user.uid, nextProfile, nextPreferences);
+        preferencesSignatureRef.current = JSON.stringify(nextPreferences);
+      });
+      preferencesQueueRef.current = saveTask.catch(() => undefined);
+      await saveTask;
+    }
+
+    setProfile(nextProfile);
+    setSelectedSemester(nextSemester);
+    setActiveTab(nextActiveTab);
+    if (selectedSemester !== nextSemester) {
+      setIsEditorOpen(false);
+      setIsMobileCoursesOpen(false);
+      setIsDialogOpen(false);
+    }
+    setSaveError('');
+  };
+
+  const handleMobileLogout = () => {
+    setIsMobileCoursesOpen(false);
+    if (user) {
+      void onSignOut();
+    } else {
+      onExitGuest();
+    }
   };
 
   const handleReset = () => {
@@ -786,6 +909,39 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     .map((subject) => ({ subject, progress: getCourseProgress(subject, calculatedSignatures) })),
   [subjects, calculatedSignatures]);
 
+  const courseFlow = useMemo(() => [
+    ...semesterCourseRows.map((row) => ({ kind: 'course' as const, course: row.course, subject: row.subject })),
+    ...semesterElectiveRows.map((row) => ({ kind: 'elective' as const, course: row.course, subject: row.subject, slot: row.slot })),
+    ...otherCourseRows.map((row) => ({ kind: 'other' as const, subject: row.subject })),
+  ], [semesterCourseRows, semesterElectiveRows, otherCourseRows]);
+  const currentCourseFlowIndex = courseFlow.findIndex((item) => item.subject?.id === currentSubjectId);
+  const nextCourseFlowItem = currentCourseFlowIndex >= 0
+    ? courseFlow[currentCourseFlowIndex + 1]
+    : undefined;
+  const nextCourseActionLabel = currentCourseFlowIndex < 0
+    ? null
+    : nextCourseFlowItem
+      ? 'Next Course'
+      : 'Go to GPA Hub';
+
+  const handleNextCourse = () => {
+    if (!hasCalculatedCurrentSubject || currentCourseFlowIndex < 0) return;
+    if (!nextCourseFlowItem) {
+      setIsMobileCoursesOpen(false);
+      setActiveTab('gpa');
+      return;
+    }
+
+    if (nextCourseFlowItem.kind === 'elective' && !nextCourseFlowItem.course) {
+      setIsMobileCoursesOpen(false);
+      handleOpenElectivePicker(nextCourseFlowItem.slot);
+    } else if (nextCourseFlowItem.kind === 'other') {
+      handleOpenOtherCourse(nextCourseFlowItem.subject);
+    } else if (nextCourseFlowItem.course) {
+      handleOpenPresetCourse(nextCourseFlowItem.course);
+    }
+  };
+
   const allSemesterCoursesCalculated = useMemo(() => {
     if (selectedSemester === null || semesterCourseRows.length === 0) return false;
     const projectOptions = semesterCourseRows.filter(({ course }) =>
@@ -804,10 +960,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
   }, [selectedSemester, semesterCourseRows, semesterElectiveRows]);
 
   const scrollToSummary = () => {
-    const el = document.getElementById('summary-at-end');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    document.getElementById('summary-at-end')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   if (signOutPending) return <WorkspaceLoading message="Signing out…" />;
@@ -834,51 +987,51 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
     );
   }
 
+  if (user && !profile) {
+    return (
+      <AcademicSetupScreen
+        profile={profile}
+        initialSemester={selectedSemester}
+        email={user.email ?? ''}
+        guestMode={false}
+        onSave={handleSaveAcademicProfile}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
       {/* Top Bar */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
+      <div className="sticky top-0 z-30">
+      <header className="bg-white border-b border-slate-200 shadow-sm pt-[env(safe-area-inset-top)]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-14 py-1.5 sm:h-14 sm:py-0 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand wordmark */}
-          <a href="#" className="shrink-0 text-base sm:text-lg font-black tracking-tight text-[#172554] flex items-center gap-2 transition-opacity hover:opacity-80">
-            <span className="w-9 h-9 bg-[#172554] text-white flex items-center justify-center text-xs font-black shadow-sm">
-              CA
+          <button
+            ref={profileButtonRef}
+            type="button"
+            onClick={() => setIsProfileOpen(true)}
+            aria-label="Open student profile"
+            aria-haspopup="dialog"
+            aria-expanded={isProfileOpen}
+            aria-controls={isProfileOpen ? 'academic-profile-drawer' : undefined}
+            className="flex min-w-0 shrink items-center gap-2 text-left text-base font-black tracking-tight text-[#172554] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#172554] sm:text-lg"
+          >
+            <span className="w-8 h-8 bg-[#172554] text-white flex items-center justify-center text-xs font-black">
+              CC
             </span>
-            <span className="hidden uppercase md:inline">Academic Marks Calculator</span>
-            <span className="text-[10px] uppercase leading-tight md:hidden">Marks<br />Calculator</span>
-          </a>
-
-          {/* Quick status bar */}
-          {activeTab === 'calculator' && <div className="hidden lg:flex items-center gap-3 border border-slate-200 px-3.5 py-1.5 bg-slate-50 text-xs shadow-sm">
-            {hasSubjectSelected && hasCalculatedCurrentSubject ? (
-              <>
-                <span className="font-bold text-[#172554] uppercase tracking-wider">{currentSubject.name}:</span>
-                <span className="font-semibold text-slate-600 bg-white px-1.5 py-0.5 border border-slate-300">
-                  {breakdown.courseTypeLabel}
-                </span>
-                <span className="font-black text-[#172554] tabular-nums text-sm">
-                  {breakdown.total.toFixed(2)} / 100
-                </span>
-                <span className="text-[#172554] font-bold">·</span>
-                <span className="font-black text-[#172554]">Indicative grade {breakdown.grade.letter}</span>
-                <span className="text-[#172554] font-bold">·</span>
-                <button
-                  type="button"
-                  onClick={scrollToSummary}
-                  className="text-[#1e3a8a] hover:underline font-bold inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider ml-1 cursor-pointer"
-                >
-                  <span>Summary at End</span>
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              </>
-            ) : hasSubjectSelected ? (
-              <span className="font-semibold text-slate-600">Enter marks and calculate to view the final result</span>
-            ) : (
-              <span className="font-bold text-slate-600 uppercase tracking-wider">
-                Select a subject
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="hidden uppercase md:inline">CALCREDIT</span>
+              <span className="text-[10px] uppercase leading-tight md:hidden">CALCREDIT</span>
+              <span
+                className="max-w-20 truncate text-[10px] font-semibold normal-case tracking-normal text-slate-600 md:max-w-36"
+                title={profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
+              >
+                {profile?.studentName.trim() || (guestMode ? 'Guest Student' : 'Student')}
               </span>
-            )}
-          </div>}
+            </span>
+          </button>
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-[#172554]">
@@ -916,7 +1069,7 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </button>
           </nav>
 
-          <label className="ml-auto flex shrink-0 items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-[#172554]">
+          <label className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#172554] sm:gap-2">
             <span className="hidden md:inline">Semester</span>
             <span className="relative">
               <select
@@ -934,11 +1087,13 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             </span>
           </label>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
             {user ? (
               <>
-                <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={user.email ?? undefined}>
-                  {user.email}
+                <span className="hidden xl:block max-w-40 truncate text-xs font-semibold text-slate-600" title={profile?.studentName.trim() || 'Student'}>
+                  {profile?.studentName.trim() || 'Student'}
                 </span>
                 <button
                   type="button"
@@ -964,27 +1119,59 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
             )}
           </div>
         </div>
-        <div className="grid grid-cols-3 border-t border-slate-200 bg-white md:hidden">
-          {([
-            ['calculator', 'Calc'],
-            ['grades', 'Grades'],
-            ['gpa', 'GPA'],
-          ] as const).map(([tab, label], index) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              aria-pressed={activeTab === tab}
-              className={`min-h-11 px-2 text-xs font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#172554] ${index > 0 ? 'border-l border-slate-200' : ''} ${activeTab === tab ? 'bg-[#172554] text-white' : 'text-[#172554] hover:bg-slate-50'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </header>
+      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && (
+        hasCalculatedCurrentSubject ? (
+          <StickyResultSummary
+            placement="desktop"
+            subjectName={currentSubject.name}
+            total={breakdown.total}
+            grade={breakdown.grade.letter}
+            gradePoint={breakdown.grade.gradePoint}
+            actionLabel={nextCourseActionLabel}
+            onAction={handleNextCourse}
+            onSummary={scrollToSummary}
+          />
+        ) : (
+          <div className="hidden border-b border-slate-200 bg-white px-4 py-2 text-sm font-black text-[#172554] md:block" role="status" aria-live="polite" aria-label="Current subject">
+            {currentSubject.name}
+          </div>
+        )
+      )}
+      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && !hasCalculatedCurrentSubject && (
+        <div className="border-b border-slate-200 bg-white px-3 py-2 text-xs font-black text-[#172554] md:hidden" role="status" aria-live="polite" aria-label="Current subject">
+          {currentSubject.name}
+        </div>
+      )}
+      </div>
+
+      {activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject && (
+        <StickyResultSummary
+          placement="mobile"
+          subjectName={currentSubject.name}
+          total={breakdown.total}
+          grade={breakdown.grade.letter}
+          gradePoint={breakdown.grade.gradePoint}
+          actionLabel={nextCourseActionLabel}
+          onAction={handleNextCourse}
+        />
+      )}
+
+      <MobileBottomNavigation
+        activeTab={activeTab}
+        coursesOpen={isMobileCoursesOpen}
+        logoutPending={signOutPending}
+        onNavigate={(tab) => {
+          setIsMobileCoursesOpen(false);
+          setActiveTab(tab);
+        }}
+        onToggleCourses={() => setIsMobileCoursesOpen((open) => !open)}
+        onLogout={handleMobileLogout}
+        coursesButtonRef={mobileCoursesButtonRef}
+      />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 ${activeTab === 'calculator' && isEditorOpen && hasSubjectSelected && hasCalculatedCurrentSubject ? 'pb-[calc(12rem+env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'} md:pb-8`}>
         {guestMode && (
           <div className="mb-5 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
             <strong className="font-black">Guest session:</strong>{' '}
@@ -1021,29 +1208,15 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         )}
 
         {activeTab === 'calculator' && selectedSemester === null && (
-          <section className="mx-auto my-12 max-w-xl border border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
-            <h1 className="text-xl font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
+          <section className="mx-auto my-6 max-w-xl border border-slate-300 bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6">
+            <h1 className="text-lg font-black uppercase tracking-wide text-[#172554]">Choose your semester</h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">Select a semester from the menu at the top right to see its courses and start entering marks.</p>
-            <label className="mt-6 inline-flex flex-col items-start gap-2 text-xs font-bold uppercase tracking-wide text-[#172554]">
-              Semester
-              <select
-                aria-label="Choose semester to get started"
-                value=""
-                onChange={(event) => handleSemesterChange(event.currentTarget.value)}
-                className="min-w-48 border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold normal-case focus:border-[#172554] focus:outline-2 focus:outline-[#172554]"
-              >
-                <option value="" disabled>Choose a semester…</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
-                  <option key={semester} value={semester}>Semester {semester}</option>
-                ))}
-              </select>
-            </label>
           </section>
         )}
 
         {activeTab === 'calculator' && selectedSemester !== null && (
           <div className="min-w-0 space-y-6">
-            <div className="min-w-0">
+            <div className={`min-w-0 ${isEditorOpen ? 'hidden md:block' : ''}`}>
               <SemesterCourseDashboard
                 semester={selectedSemester}
                 courses={semesterCourseRows}
@@ -1466,15 +1639,51 @@ function AuthenticatedApp({ user, guestMode, onSignOut, onExitGuest, signOutPend
         )}
 </main>
 
+<MobileCoursesSheet
+  isOpen={isMobileCoursesOpen}
+  semester={selectedSemester}
+  courses={semesterCourseRows}
+  electiveSlots={semesterElectiveRows}
+  otherCourses={otherCourseRows}
+  selectedSubjectId={isEditorOpen ? currentSubjectId : ''}
+  allCoursesCalculated={allSemesterCoursesCalculated}
+  onClose={closeMobileCourses}
+  onSelectCourse={(course) => {
+    setIsMobileCoursesOpen(false);
+    handleOpenPresetCourse(course);
+  }}
+  onSelectElective={(slot) => {
+    setIsMobileCoursesOpen(false);
+    handleOpenElectivePicker(slot);
+  }}
+  onSelectOtherCourse={(subject) => {
+    setIsMobileCoursesOpen(false);
+    handleOpenOtherCourse(subject);
+  }}
+  onCalculateGpa={() => {
+    setIsMobileCoursesOpen(false);
+    setActiveTab('gpa');
+  }}
+/>
 
-      {/* Subject Selection Modal Dialog Box */}
+<ProfileDrawer
+  isOpen={isProfileOpen}
+  onClose={closeProfileDrawer}
+  profile={profile}
+  initialSemester={selectedSemester}
+  email={user?.email ?? ''}
+  guestMode={guestMode}
+  onSave={handleSaveAcademicProfile}
+  theme={theme}
+  onToggleTheme={onToggleTheme}
+/>
+
+{/* Subject Selection Modal Dialog Box */}
       <SubjectSelectionDialog
         isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
+        onClose={handleCloseSubjectDialog}
         onSelectCourse={handleOpenPresetCourse}
-        currentSubjectName={dialogPurpose === 'course' && isEditorOpen ? currentSubject.name : ''}
         initialSemester={selectedSemester}
-        initialGroup={dialogPurpose === 'elective' ? 'elective' : 'core'}
         initialElectiveSlot={dialogElectiveSlot}
       />
     </div>

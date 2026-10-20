@@ -7,7 +7,7 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import type { SubjectData } from './types';
+import type { AcademicProfileData, SubjectData } from './types';
 import { db } from './firebase';
 import { GPA_COURSES } from './gpaCourses';
 import { PRESET_COURSES } from './components/SubjectSelectionDialog';
@@ -35,6 +35,7 @@ export interface GpaHistoryEntry {
 
 export interface UserWorkspaceData {
   subjects: SubjectData[];
+  profile: AcademicProfileData | null;
   persistedSubjectSnapshots: Map<string, string>;
   calculatedSignatures: Record<string, string>;
   gpaHistory: GpaHistoryEntry[];
@@ -59,13 +60,14 @@ function userDocument(uid: string, collectionName: string, id: string) {
 
 export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData> {
   const firestore = requireFirestore();
-  const [subjectSnapshot, gradeSnapshot, historySnapshot, preferencesSnapshot, migrationSnapshot] =
+  const [subjectSnapshot, gradeSnapshot, historySnapshot, preferencesSnapshot, migrationSnapshot, profileSnapshot] =
     await Promise.all([
       getDocs(collection(firestore, 'users', uid, 'subjects')),
       getDocs(collection(firestore, 'users', uid, 'gradeRecords')),
       getDocs(collection(firestore, 'users', uid, 'gpaHistory')),
       getDoc(doc(firestore, 'users', uid, 'settings', 'preferences')),
       getDoc(doc(firestore, 'users', uid, 'settings', 'legacyMigration')),
+      getDoc(doc(firestore, 'users', uid, 'settings', 'profile')),
     ]);
 
   const subjects = subjectSnapshot.docs
@@ -87,9 +89,22 @@ export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData>
   const gpaHistory = historySnapshot.docs
     .map((snapshot) => ({ ...snapshot.data(), id: snapshot.id } as GpaHistoryEntry))
     .sort((a, b) => b.createdAtMs - a.createdAtMs);
+  const profileData = profileSnapshot.data();
+  const profile = profileData &&
+    ['studentName', 'rollNumber', 'department', 'degree'].every((field) =>
+      typeof profileData[field] === 'string' && profileData[field].trim()
+    )
+    ? {
+        studentName: (profileData.studentName as string).trim(),
+        rollNumber: (profileData.rollNumber as string).trim(),
+        department: (profileData.department as string).trim(),
+        degree: (profileData.degree as string).trim(),
+      }
+    : null;
 
   return {
     subjects,
+    profile,
     persistedSubjectSnapshots,
     calculatedSignatures,
     gpaHistory,
@@ -112,6 +127,32 @@ export async function loadUserWorkspace(uid: string): Promise<UserWorkspaceData>
         : null,
     },
   };
+}
+
+export async function saveUserAcademicProfile(
+  uid: string,
+  profile: AcademicProfileData,
+  preferences: {
+    currentSubjectId: string;
+    activeTab: 'calculator' | 'grades' | 'gpa';
+    includeEstimates: boolean;
+    estimatePercentage: number;
+    selectedSemester: number;
+  }
+) {
+  const firestore = requireFirestore();
+  const batch = writeBatch(firestore);
+  batch.set(
+    doc(firestore, 'users', uid, 'settings', 'profile'),
+    { ...profile, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  batch.set(
+    doc(firestore, 'users', uid, 'settings', 'preferences'),
+    { ...preferences, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  await batch.commit();
 }
 
 export async function syncUserSubjects(

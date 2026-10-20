@@ -537,9 +537,7 @@ interface SubjectSelectionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectCourse: (course: PresetCourse) => void;
-  currentSubjectName: string;
   initialSemester?: SemesterNumber | null;
-  initialGroup?: 'core' | 'elective';
   initialElectiveSlot?: string | null;
 }
 
@@ -547,67 +545,61 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
   isOpen,
   onClose,
   onSelectCourse,
-  currentSubjectName,
   initialSemester,
-  initialGroup,
   initialElectiveSlot,
 }) => {
   const [selectedSemester, setSelectedSemester] = useState<SemesterNumber>(1);
   const [selectedCourse, setSelectedCourse] = useState<PresetCourse>(PRESET_COURSES[0]);
-  const [selectedCourseGroup, setSelectedCourseGroup] = useState<'core' | 'elective'>('core');
   const [selectedElectiveSlot, setSelectedElectiveSlot] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const found = currentSubjectName
-      ? PRESET_COURSES.find((c) => c.name.toLowerCase() === currentSubjectName.toLowerCase())
-      : null;
-
-    if (found) {
-      setSelectedSemester(found.semester);
-      setSelectedCourse(found);
-      setSelectedCourseGroup(found.group === 'elective' ? 'elective' : 'core');
-      setSelectedElectiveSlot(found.electiveSlot ?? null);
-      return;
-    }
-
     const semester = initialSemester ?? selectedSemester;
-    const group = initialGroup ?? 'core';
-    const slot = initialElectiveSlot ?? ELECTIVE_SLOTS_BY_SEMESTER[semester]?.[0] ?? null;
-    const fallback = PRESET_COURSES.find((course) =>
-      course.semester === semester && (group === 'elective'
-        ? course.group === 'elective' && course.electiveSlot === slot
-        : course.group !== 'elective')
-    ) ?? PRESET_COURSES.find((course) => course.semester === semester) ?? PRESET_COURSES[0];
-    setSelectedSemester(fallback.semester);
-    setSelectedCourse(fallback);
-    setSelectedCourseGroup(fallback.group === 'elective' ? 'elective' : 'core');
-    setSelectedElectiveSlot(fallback.electiveSlot ?? slot);
-  }, [isOpen, currentSubjectName, initialSemester, initialGroup, initialElectiveSlot]);
+    const slots = ELECTIVE_SLOTS_BY_SEMESTER[semester] ?? [];
+    const slot = initialElectiveSlot && slots.includes(initialElectiveSlot)
+      ? initialElectiveSlot
+      : slots[0] ?? null;
+    const firstOption = PRESET_COURSES.find(
+      (course) => course.semester === semester && course.group === 'elective' && course.electiveSlot === slot
+    );
+    setSelectedSemester(semester);
+    setSelectedCourse(firstOption ?? PRESET_COURSES[0]);
+    setSelectedElectiveSlot(slot);
+  }, [isOpen, initialSemester, initialElectiveSlot]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   const electiveSlots = ELECTIVE_SLOTS_BY_SEMESTER[selectedSemester] ?? [];
-  const filteredCourses = PRESET_COURSES.filter((course) => {
-    if (course.semester !== selectedSemester) return false;
-    if (selectedCourseGroup === 'core') return course.group !== 'elective';
-    return course.group === 'elective' && course.electiveSlot === selectedElectiveSlot;
-  });
+  const filteredCourses = PRESET_COURSES.filter((course) =>
+    course.semester === selectedSemester &&
+    course.group === 'elective' &&
+    course.electiveSlot === selectedElectiveSlot
+  );
 
   const handleSemesterChange = (nextSemester: SemesterNumber) => {
     setSelectedSemester(nextSemester);
     const nextSlots = ELECTIVE_SLOTS_BY_SEMESTER[nextSemester] ?? [];
     const nextDefaultSlot = nextSlots[0] ?? null;
     const nextDefaultCourse = PRESET_COURSES.find(
-      (course) => course.semester === nextSemester && course.group !== 'elective'
-    ) ?? PRESET_COURSES.find((course) => course.semester === nextSemester) ?? PRESET_COURSES[0];
-    setSelectedCourse(nextDefaultCourse);
-    setSelectedCourseGroup(nextDefaultCourse.group === 'elective' ? 'elective' : 'core');
+      (course) => course.semester === nextSemester && course.group === 'elective' && course.electiveSlot === nextDefaultSlot
+    );
+    const fallbackCourse = nextDefaultCourse ?? PRESET_COURSES[0];
+    setSelectedCourse(fallbackCourse);
     setSelectedElectiveSlot(nextDefaultSlot);
   };
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
+    if (!filteredCourses.some((course) => course.id === selectedCourse.id)) return;
     onSelectCourse(selectedCourse);
     onClose();
   };
@@ -618,6 +610,28 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="dialog-title"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = event.currentTarget.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) {
+          event.preventDefault();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
     >
       <div className="bg-white border border-slate-300 w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
         {/* Dialog Header */}
@@ -625,16 +639,15 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
           <h2 id="dialog-title" className="text-sm font-black uppercase tracking-wider">
             Select Course
           </h2>
-          {currentSubjectName && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-slate-300 hover:text-white p-1 cursor-pointer transition-colors"
-              aria-label="Close dialog"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            autoFocus
+            className="text-slate-300 hover:text-white p-1 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-white"
+            aria-label="Close dialog"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Dialog Body - Semester selector and course list */}
@@ -662,59 +675,27 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
           {electiveSlots.length > 0 && (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCourseGroup('core')}
-                  className={`px-3 py-2 text-[11px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
-                    selectedCourseGroup === 'core'
-                      ? 'bg-[#172554] text-white border-[#172554]'
-                      : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
-                  }`}
-                >
-                  Core Courses
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCourseGroup('elective');
-                    setSelectedElectiveSlot((current) => current ?? electiveSlots[0]);
-                  }}
-                  className={`px-3 py-2 text-[11px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
-                    selectedCourseGroup === 'elective'
-                      ? 'bg-[#172554] text-white border-[#172554]'
-                      : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
-                  }`}
-                >
-                  Electives
-                </button>
+                {electiveSlots.map((slot) => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => {
+                      setSelectedElectiveSlot(slot);
+                      const firstOption = PRESET_COURSES.find(
+                        (course) => course.semester === selectedSemester && course.group === 'elective' && course.electiveSlot === slot
+                      );
+                      if (firstOption) setSelectedCourse(firstOption);
+                    }}
+                    className={`px-3 py-2 text-[11px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
+                      selectedElectiveSlot === slot
+                        ? 'bg-blue-100 text-[#172554] border-[#172554]'
+                        : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
               </div>
-
-              {selectedCourseGroup === 'elective' && (
-                <div className="flex flex-wrap gap-2">
-                  {electiveSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => {
-                        setSelectedElectiveSlot(slot);
-                        const firstOption = PRESET_COURSES.find(
-                          (course) => course.semester === selectedSemester && course.group === 'elective' && course.electiveSlot === slot
-                        );
-                        if (firstOption) {
-                          setSelectedCourse(firstOption);
-                        }
-                      }}
-                      className={`px-3 py-2 text-[11px] font-black uppercase tracking-wider border cursor-pointer transition-colors ${
-                        selectedElectiveSlot === slot
-                          ? 'bg-blue-100 text-[#172554] border-[#172554]'
-                          : 'bg-white text-[#172554] border-slate-300 hover:border-[#172554] hover:bg-slate-50'
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -764,18 +745,17 @@ export const SubjectSelectionDialog: React.FC<SubjectSelectionDialogProps> = ({
 
         {/* Dialog Footer */}
         <div className="px-5 py-3 bg-slate-50 border-t border-[#172554] flex items-center justify-end gap-2">
-          {currentSubjectName && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#172554] border border-[#172554] bg-white hover:bg-slate-100 cursor-pointer"
-            >
-              Cancel
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#172554] border border-[#172554] bg-white hover:bg-slate-100 cursor-pointer"
+          >
+            Cancel
+          </button>
           <button
             type="button"
             onClick={handleConfirm}
+            disabled={!filteredCourses.some((course) => course.id === selectedCourse.id)}
             className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#172554] hover:bg-[#1e3a8a] transition-colors cursor-pointer"
           >
             Select Course
